@@ -1,0 +1,28 @@
+---
+title: Should You Use Film Infrared Cleaning? (Digital ICE)
+date: July 18, 2017
+---
+
+Short answer: __Yes__. For a practical example, play around with the slider at the bottom.
+
+---
+
+Digital ICE has been around for a long time. According to Wikipedia [[1]][1], the technique is originally from the 1960s, but nowadays is often found in film negative scanners. Different manufacturers have used the same underlying tech for the past ten years. Apart from _Digital ICE_, you might therefore have a scanner which features _Magic Touch_ or Canon's _FARE_. While the exact implementations are almost guaranteed to differ, they all use an additional infrared lamp to scan negative film with. Dust and scratches can be detected reliably for standard color film using this method, but due to the different structure of black and white film, the technique does not work here.
+
+After the scan, when dust and scratches have been detected by the scanner, it is now up to the scanning software to replace these _faulty_ places with content that essentially looks more pleasing to the human eye. Because these changes are done only where defects have been detected, the method does not affect the overall image quality negatively. Filling "holes" in images with computer generated content is called _inpainting_ and also has been around for quite some time [\[2, ][2] [3\]][3]. More advanced versions of this technique have made it into Adobe's Photoshop ("Content Aware Fill"), but your scanning program likely implements their own technique. Unfortunately, I've yet to find a way to use Photoshop's "Content Aware Fill" to fixup my negatives. Still, __you should definitely be using Digital ICE__ (or related technology).
+
+Below you'll find a before-after comparison of a recent photo I scanned. The negative itself is well over 20 years old. On the left hand side you see what happens if you scan with _Infrared cleaning_ turned off, on the right hand side with _Infrared cleaning_ set to _Light_ (I'm using VueScan for these experiments!).
+
+Manually retouching the photo would take _hours_.
+
+Note: Using Digital ICE or similar techniques does not mean you should not clean your negatives properly before scanning. The cleaner your negatives are, the less content has to be replaced by algorithms.
+
+<!--html_preserve-->
+<div class="slide-comparison"><img src="/assets/images/cat_clean.jpg"><div class="resized"><img src="/assets/images/cat_littered.jpg"></div><div class="divider"></div></div>
+<!--/html_preserve-->
+
+<script src="/assets/js/image-comparison-slider.min.js"></script>
+
+[1]: https://en.wikipedia.org/wiki/Digital_ICE
+[2]: https://www.youtube.com/watch?v=1DoCQMelAMM
+[3]: https://www.microsoft.com/en-us/research/product/computational-photography-applications/image-composite-editor/
