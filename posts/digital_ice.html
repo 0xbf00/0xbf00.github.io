@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, maximum-scale=1.0">
+    <meta name="description" content="Ubrigens is a small site dedicated to all things Infosec.">
+    <title>Ubrigens | Should You Use Film Infrared Cleaning? (Digital ICE)</title>
+    <link rel="stylesheet" type="text/css" href="../assets/css/default.css" />
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script src="../assets/js/main.js"></script>
+    <script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-58005603-2', 'auto');
+  ga('set', 'anonymizeIp', true);
+  ga('send', 'pageview');
+
+</script>
+    <link rel="shortcut icon" type="image/png" href="../assets/images/favicon.png">
+    <link rel="shortcut icon" type="image/png" href="https://ubrigens.com/assets/images/favicon.png" !>
+</head>
+<body>
+    <div id="page" class="cf">
+        <div id="header" class="cf">
+            <a href="../" class="logo">Ü</a>
+            <ul class="nav cf">
+                <li><a href="../">Home</a></li>
+                <li><a href="../about.html">About</a></li>
+            </ul>
+        </div>
+        <div id="content"><div class="post">
+    <h2>
+        Should You Use Film Infrared Cleaning? (Digital ICE)
+        <span class="date">July 18, 2017</span>
+    </h2>
+    <p>Short answer: <strong>Yes</strong>. For a practical example, play around with the slider at the bottom.</p>
+<hr />
+<p>Digital ICE has been around for a long time. According to Wikipedia <a href="https://en.wikipedia.org/wiki/Digital_ICE">[1]</a>, the technique is originally from the 1960s, but nowadays is often found in film negative scanners. Different manufacturers have used the same underlying tech for the past ten years. Apart from <em>Digital ICE</em>, you might therefore have a scanner which features <em>Magic Touch</em> or Canon’s <em>FARE</em>. While the exact implementations are almost guaranteed to differ, they all use an additional infrared lamp to scan negative film with. Dust and scratches can be detected reliably for standard color film using this method, but due to the different structure of black and white film, the technique does not work here.</p>
+<p>After the scan, when dust and scratches have been detected by the scanner, it is now up to the scanning software to replace these <em>faulty</em> places with content that essentially looks more pleasing to the human eye. Because these changes are done only where defects have been detected, the method does not affect the overall image quality negatively. Filling “holes” in images with computer generated content is called <em>inpainting</em> and also has been around for quite some time <a href="https://www.youtube.com/watch?v=1DoCQMelAMM">[2,</a> <a href="https://www.microsoft.com/en-us/research/product/computational-photography-applications/image-composite-editor/">3]</a>. More advanced versions of this technique have made it into Adobe’s Photoshop (“Content Aware Fill”), but your scanning program likely implements their own technique. Unfortunately, I’ve yet to find a way to use Photoshop’s “Content Aware Fill” to fixup my negatives. Still, <strong>you should definitely be using Digital ICE</strong> (or related technology).</p>
+<p>Below you’ll find a before-after comparison of a recent photo I scanned. The negative itself is well over 20 years old. On the left hand side you see what happens if you scan with <em>Infrared cleaning</em> turned off, on the right hand side with <em>Infrared cleaning</em> set to <em>Light</em> (I’m using VueScan for these experiments!).</p>
+<p>Manually retouching the photo would take <em>hours</em>.</p>
+<p>Note: Using Digital ICE or similar techniques does not mean you should not clean your negatives properly before scanning. The cleaner your negatives are, the less content has to be replaced by algorithms.</p>
+<!--html_preserve-->
+<div class="slide-comparison">
+<img src="../assets/images/cat_clean.jpg">
+<div class="resized">
+<img src="../assets/images/cat_littered.jpg">
+</div>
+<div class="divider">
+
+</div>
+</div>
+<!--/html_preserve-->
+<script src="../assets/js/image-comparison-slider.min.js"></script>
+</div>
+</div>
+        <div id="footer">
+            Site created using <a target="_blank" href="http://jaspervdj.be/hakyll">Hakyll</a>.
+        </div>
+    </div>
+</body>
+</html>

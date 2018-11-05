@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, maximum-scale=1.0">
+    <meta name="description" content="Ubrigens is a small site dedicated to all things Infosec.">
+    <title>Ubrigens | Papers - September 2015</title>
+    <link rel="stylesheet" type="text/css" href="../assets/css/default.css" />
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script src="../assets/js/main.js"></script>
+    <script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-58005603-2', 'auto');
+  ga('set', 'anonymizeIp', true);
+  ga('send', 'pageview');
+
+</script>
+    <link rel="shortcut icon" type="image/png" href="../assets/images/favicon.png">
+    <link rel="shortcut icon" type="image/png" href="https://ubrigens.com/assets/images/favicon.png" !>
+</head>
+<body>
+    <div id="page" class="cf">
+        <div id="header" class="cf">
+            <a href="../" class="logo">Ü</a>
+            <ul class="nav cf">
+                <li><a href="../">Home</a></li>
+                <li><a href="../about.html">About</a></li>
+            </ul>
+        </div>
+        <div id="content"><div class="post">
+    <h2>
+        Papers - September 2015
+        <span class="date">September 10, 2015</span>
+    </h2>
+    <p>I am starting a new series on this site, where I comment on papers I read in the last few weeks. I intend to publish these articles bimonthly!</p>
+<p><a href="https://www.iseclab.org/papers/beagle.pdf">&gt; <strong>Lines of Malicious Code: Insights Into the Malicious Software Industry</strong> (2012)</a></p>
+<blockquote>
+<p>Some interesting techniques but almost no usable results: Malware changes over time, but remains stable for large periods of time. Who would have thought that binary matching and diffing were hard and you trade off speed versus accuracy? The bottom line is: malware changes just as normal software does, adding approximately 100-300 LoC on average in each new version.</p>
+</blockquote>
+<p><a href="https://users.ece.cmu.edu/~tdumitra/public_documents/bilge12_zero_day.pdf">&gt; <strong>Before We Knew It - An Empirical Study of Zero-Day Attacks In The Real World</strong> (2012)</a></p>
+<blockquote>
+<p>The paper uses surprisingly simple tactics to achieve its result, which is the identification of 18 zero-day attacks - of which 11 were unknown at the time of publication - from more or less publicly available data (Symantec’s WINE dataset).</p>
+</blockquote>
+<blockquote>
+<p>Some of the more interesting tidbits are these:</p>
+</blockquote>
+<blockquote>
+<ul>
+<li>A ‘typical zero-day attack’ lasts 312 days on average</li>
+<li>10% of security patches have bugs of their own (Check out <a href="https://xuanwulab.github.io/2015/08/27/Poking-a-Hole-in-the-Patch/">[1,</a> <a href="http://blog.exodusintel.com/2015/08/13/stagefright-mission-accomplished/">2]</a> for recent examples)</li>
+<li>The number of attacks increase 2 - 100 000 times after the public disclosure of vulnerabilites</li>
+</ul>
+</blockquote>
+<p><a href="https://www.cs.indiana.edu/~minaxi/pubs/acsac12-vv.pdf">&gt; <strong>Twitter Games: How Successful Spammers Pick Targets</strong> (2012)</a></p>
+<blockquote>
+<p>Spammers use Twitter with varying degree of success. Spam tacts evolve quickly and are hard to analyse automatically. Ratelimiting and, more generally, costs associated with the modern Twitter API result in studies that work on very small data sets and are thus not really representative. Since the article is a couple of years old, chances are the findings are irrelevant by now. Be sure to check out related works if you are interested in the topic.</p>
+</blockquote>
+<p><a href="https://www.iseclab.org/papers/vanity_cracks_malware_ccs2012.pdf">&gt; <strong>Vanity, Cracks and Malware - Insights into the Anti-Copy Protection Ecosystem</strong> (2012)</a></p>
+<blockquote>
+<p>Surprise! Cracks are used by criminals to spread malware! The original source - dubbed the <em>scene</em> - is mostly fine and has mechanisms to deal with malicious or faulty uploads (which result in what’s called a <em>NUKE</em>). Instead, the intermediate distribution steps such as OCH, BitTorrent or even Usenet, allow parties unrelated to the original warez groups to attach their own malicious software.</p>
+</blockquote>
+<blockquote>
+<ul>
+<li>The authors could be the only people to ever purchase a <a href="http://letitbit.net">Letitbit</a> premium account</li>
+<li><em>AVG free</em> apparently was at some point a <em>state of the art</em> AV</li>
+<li>Authors speculate that they could have found <em>0-day malware</em>, because they found new samples.</li>
+<li>Even though their AV reported 2/3 of all files to be infected, only 13.33% actually infected the host. This is what’s called a <em>false positive</em>, and is most likely not because the malicious code did not manage to persist, as the authors seem to assume.</li>
+</ul>
+</blockquote>
+<blockquote>
+<p>The article highlights the need for users to be able to verify the integrity of a certain crack or keygen downloaded through untrusted channels. To this end, it might be useful for release groups to sign their releases. The exact infrastructure to support this endeavor could be as simple as using PGP.</p>
+</blockquote>
+<p><a href="https://eprint.iacr.org/2015/767.pdf">&gt; <strong>Dual EC: A Standardized Back Door</strong> (2015)</a></p>
+<blockquote>
+<p>Offers interesting views behind the scenes of the Dual EC standardization effort. Be sure to also check out Schneier’s paper <a href="https://eprint.iacr.org/2015/097.pdf">“Surreptitiously Weakening Cryptographic Systems”</a>, as well as <a href="https://projectbullrun.org/dual-ec/">Project Bullrun</a>, the project’s website containing lots of referenced documents.</p>
+</blockquote>
+<p><a href="http://arxiv.org/pdf/1509.00459v1.pdf">&gt; <strong>Visualizing signatures of human activity in cities across the globe</strong> (2015)</a></p>
+<blockquote>
+<p>What the hell is that font? Short and sweet paper, though it’s <a href="http://www.manycities.org/">interactive web counterpart</a> is much more exciting.</p>
+</blockquote>
+</div>
+</div>
+        <div id="footer">
+            Site created using <a target="_blank" href="http://jaspervdj.be/hakyll">Hakyll</a>.
+        </div>
+    </div>
+</body>
+</html>
