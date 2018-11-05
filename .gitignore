@@ -1,0 +1,17 @@
+**/.DS_Store
+dist
+cabal-dev
+*.o
+*.hi
+*.chi
+*.chs.h
+.virthualenv
+.cabal-sandbox
+Setup.hs
+cabal.sandbox.config
+stack.yaml
+site
+_site
+_cache
+node_modules/
+new_posts/
