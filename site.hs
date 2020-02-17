@@ -15,7 +15,7 @@ postCtx =
 -------------------------------------------------------------------------------
 
 deployCmd :: String
-deployCmd = "rsync -a ~/Programming/ubrigens.com-source/_site/ ubrigens:/var/www/ubrigens.com/public_html; ssh ubrigens 'chown -R www-data:www-data /var/www/ubrigens.com/public_html/'"
+deployCmd = "./deploy.sh"
 
 config :: Configuration
 config = defaultConfiguration { deployCommand = deployCmd }
@@ -28,7 +28,7 @@ processCompiled (Item id body) = return (Item id $ "Hello " ++ show body)
 main :: IO ()
 main = hakyllWith config $ do
 
-    match "assets/images/*" $ do
+    match "assets/images/**" $ do
         route   idRoute
         compile copyFileCompiler
 
