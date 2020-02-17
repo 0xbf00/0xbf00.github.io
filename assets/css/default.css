@@ -323,10 +323,11 @@ body {
     display: block;
 }
 
-#content .figure img {
+
+#content figure img {
     display: inline-block;
     margin: 10px 0;
-    width: 65%;
+    width: 75%;
     min-width: 320px;
 }
 
