@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, maximum-scale=1.0">
+    <meta name="description" content="Ubrigens is a small site dedicated to all things Infosec.">
+    <title>Ubrigens | A Whirlwind Tour of the Apple Sandbox</title>
+    <link rel="stylesheet" type="text/css" href="../assets/css/default.css" />
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script src="../assets/js/main.js"></script>
+    <script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-58005603-2', 'auto');
+  ga('set', 'anonymizeIp', true);
+  ga('send', 'pageview');
+
+</script>
+    <link rel="shortcut icon" type="image/png" href="../assets/images/favicon.png">
+    <link rel="shortcut icon" type="image/png" href="https://ubrigens.com/assets/images/favicon.png" !>
+</head>
+<body>
+    <div id="page" class="cf">
+        <div id="header" class="cf">
+            <a href="../" class="logo">Ü</a>
+            <ul class="nav cf">
+                <li><a href="../">Home</a></li>
+                <li><a href="../about.html">About</a></li>
+            </ul>
+        </div>
+        <div id="content"><div class="post">
+    <h2>
+        A Whirlwind Tour of the Apple Sandbox
+        <span class="date">February 17, 2020</span>
+    </h2>
+    <p>No-one knows how to design truly secure software. Any sufficiently complex software <em>will</em> contain vulnerabilities that can be abused by motivated attackers to subvert a program’s execution. Accepting this reality, the focus of the last few decades has been on developing exploit mitigation techniques such as <em>Address Space Layout Randomisation</em> (ASLR) and <em>Data Execution Prevention</em> (DEP) which focus on <em>increasing difficulty and costs</em> for attackers.</p>
+<figure>
+<img src="../assets/images/sandbox_tour/dac_mac.svg" alt="Overview: DAC vs MAC" /><figcaption>Overview: DAC vs MAC</figcaption>
+</figure>
+<p>Sandboxing is one such mitigation. It aims to reduce the damage of successful attacks on the host system. On traditional UNIX systems, programs run <em>as</em> a user (in what’s referred to as <em>discretionary access control</em> — DAC), inheriting all her capabilities and permissions. Most of these capabilities and permissions however are never actually required by the executing program. Sandboxing (a form of <em>mandatory access control</em> or MAC) uses per-application security policies to limit the actions a program may take and the resources it is allowed to access; it aims to make <em>what a program can do</em> the same as <em>what a program was made to do</em>. In this way, sandboxing implements the foundational information security principle of <strong>least privilege</strong>, which states that programs and users should operate using the least amount of privilege necessary to complete a certain job. Sandboxed applications – even when compromised – can access only predefined parts of the system, limiting their damage potential and requiring attackers to escape the sandbox to compromise the system itself.</p>
+<p>Security benefits afforded by sandboxing hinge on proper configuration and understanding of the sandbox mechanism itself. No mitigation is perfect; <a href="https://twitter.com/halvarflake/status/1156815950873804800">Mitigations have complexity, inspectability and debuggability costs</a>. The App Sandbox is no exception: it has had a massive impact on developers scrambling to sandbox their software which was largely designed without sandboxing in mind. Apple’s sandbox implementation lacks public documentation. It “just works”, until it doesn’t. In 2018, I wrote my Master’s Thesis on the topic. In this series of posts, I am sharing what I learned in the process. My focus today is on implementation, configuration and design internals that might not be known to a wider audience.</p>
+<h3 id="threat-model">Threat Model</h3>
+<p>A threat model states what you (a user / a mitigation / a security system) are protecting against (and also what’s not covered). It is crucial to motivate the need for any mitigation; Unfortunately, Apple does not provide an explicit threat model for the App Sandbox. I pieced together my own version here from available marketing materials, developer-facing documentation and public sandbox-related patents.</p>
+<p>The App Sandbox “<a href="https://developer.apple.com/library/archive/documentation/Security/Conceptual/AppSandboxDesignGuide/AboutAppSandbox/AboutAppSandbox.html">is designed to contain damage to the system and the user’s data if an app becomes compromised</a>”. However, it is “<a href="https://developer.apple.com/videos/play/wwdc2011/204/">not an anti-virus system; does not target intentionally malicious software</a>”. There is no practical difference between “intentionally malicious software” and software “compromised by malicious software”. This last quote can therefore only mean that <em>sandboxing in itself cannot stop malicious applications from abusing their officially granted permissions</em>, i.e. a malicious app can steal all user data it legitimately has access to. Sandboxing however should restrict even malicious applications from accessing resources that the app is not entitled to access. This interpretation of the former quote is consistent with Apple’s own patents on the topic, which motivate the need for sandboxing by stating that a “<a href="https://patents.google.com/patent/US9280644B2/en">program may be a malicious program that is developed to intentionally cause damages</a>” and “<a href="https://patents.google.com/patent/US9280644B2/en">by restricting the execution of a program within a restricted operating environment, such damages can be greatly reduced</a>”. Related patents echo this interpretation [<a href="https://patents.google.com/patent/US8943550">1</a>, <a href="https://www.researchgate.net/publication/302691438_System_and_method_for_preserving_references_in_sandboxes">2</a>].</p>
+<p>All programs are initially launched <em>non-sandboxed</em> because they “<a href="https://patents.google.com/patent/US8635663">may not have had an opportunity to compile and prepare a profile to express permitted actions</a>”. This is argued to be “<a href="https://patents.google.com/patent/US8635663">consistent with the […] design of [the Sandbox] that permits intentional user actions</a>”. Here, a user launching an application is interpreted as user intent. This little-known fact, which is completely absent from all official documentation, is the achilles heel of the whole system. Under <em>normal</em> circumstances, the sandbox is initialised before transfer is controlled to application code. However, because initialisation happens in the context of the application itself, there is precious little room for error. As it stands, there is no process to ensure applications, whose metadata suggest they should run sandboxed, actually run sandboxed. I feel that this runs counter to the idea of <em>mandatory</em> sandboxing on macOS.</p>
+<h2 id="configuration">Configuration</h2>
+<p>Apple’s sandbox restricts programs in what they can do on the user’s system. As every application is unique, the sandbox theoretically has to be configured individually for each app. This cumbersome process falls to developers to do. For software distributed in the Mac App Store (MAS), sandboxing is mandatory and enforced by Apple. <a href="https://svs.informatik.uni-hamburg.de/publications/2019/2019-11-Blochberger-State-of-the-Sandbox.pdf">Outside the MAS, sandboxing is still the exception, not the rule</a>.</p>
+<p>To configure per-program sandbox policies, two options are available: <em>SBPL</em>, a low-level configuration language, and <em>entitlements</em>, which offer a high-level interface and are the only officially supported sandbox configuration option.</p>
+<h3 id="sbpl">SBPL</h3>
+<p>The Sandbox Profile Language (SBPL) is implemented on top of the Scheme programming language. In what is referred to as an embedded domain specific language (EDSL), the base language (Scheme) is extended and augmented by custom identifiers, functions and macros to encode sandbox rules.</p>
+<figure>
+<img src="../assets/images/sandbox_tour/sbpl_components.svg" alt="SBPL Language Components" /><figcaption>SBPL Language Components</figcaption>
+</figure>
+<p>Sandbox profiles written in SBPL consist of multiple rules specified one after the other. Later rules can overwrite preceding rules, which is commonly used to implement whitelisting profiles: Deny everything first, then selectively re-enable only what is needed. Confirmed by extensive testing, the <em>last applicable rule</em> in a profile guides the final sandbox decision for a certain resource. Each rule consists of up to four components: An <em>action</em>, one or more <em>operations</em>, and optional <em>filters</em> and <em>modifiers</em>. Actions decide whether to allow or deny resource accesses. Operations denote the kind of resource access the rule applies to. Filters restrict a rule’s effect to a subset of all resources, for example only to files in a certain directory. Lastly, modifiers change the default behaviour of the sandbox. By default, only denied resource accesses are logged; a modifier changes this. A few years back, <a href="https://twitter.com/osxreverser">@osxreverser</a> bothered to <a href="https://reverse.put.as/wp-content/uploads/2011/09/Apple-Sandbox-Guide-v0.1.pdf">document the language</a>. It’s somewhat outdated, but still very useful.</p>
+<p>While the core SBPL language as described above is conceptually simple, SBPL profiles can include arbitrary Scheme code to dynamically <em>generate sandbox rules during evaluation</em>. Consider the following two SBPL snippets; Their compiled sandbox bytecode is identical.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scheme"><code class="sourceCode scheme"><a class="sourceLine" id="cb1-1" title="1">(version <span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb1-2" title="2">(allow file-read-data</a>
+<a class="sourceLine" id="cb1-3" title="3">	(subpath <span class="st">&quot;/usr/bin&quot;</span>)</a>
+<a class="sourceLine" id="cb1-4" title="4">	(subpath <span class="st">&quot;/usr/local&quot;</span>)</a>
+<a class="sourceLine" id="cb1-5" title="5">	(with report))</a></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scheme"><code class="sourceCode scheme"><a class="sourceLine" id="cb2-1" title="1">(version <span class="dv">1</span>)</a>
+<a class="sourceLine" id="cb2-2" title="2">(<span class="ex">define</span><span class="fu"> </span>(usr_plus suffix) (<span class="kw">string-append</span> <span class="st">&quot;/usr/&quot;</span> suffix))</a>
+<a class="sourceLine" id="cb2-3" title="3">(<span class="ex">define</span><span class="fu"> </span>(file-read-rule action filter)</a>
+<a class="sourceLine" id="cb2-4" title="4">	(action file-read-data</a>
+<a class="sourceLine" id="cb2-5" title="5">			filter</a>
+<a class="sourceLine" id="cb2-6" title="6">			(with report)))</a>
+<a class="sourceLine" id="cb2-7" title="7"></a>
+<a class="sourceLine" id="cb2-8" title="8">(file-read-rule allow</a>
+<a class="sourceLine" id="cb2-9" title="9">	(require-any </a>
+<a class="sourceLine" id="cb2-10" title="10">		(subpath (usr_plus <span class="st">&quot;bin&quot;</span>))</a>
+<a class="sourceLine" id="cb2-11" title="11">		(subpath (usr_plus <span class="st">&quot;local&quot;</span>))))</a></code></pre></div>
+<p>Developers wishing to write SBPL sandbox profiles directly call <code>sandbox_init</code> from their application to voluntarily enable sandboxing. Well intentioned power users can use the <code>sandbox-exec</code> command line utility to run third-party software in custom sandboxes. Don’t bother doing this however; the software will not work correctly. On the off chance it does work correctly, your sandbox profile will be too permissive.</p>
+<p>SBPL is complex and difficult to use, even for experienced developers. Though only rarely used <em>directly</em> nowadays, it still forms the foundation for sandboxing on macOS and therefore remains important to understand.</p>
+<h3 id="entitlements">Entitlements</h3>
+<p><em>Entitlements</em> were introduced for reasons of usability. A “<a href="https://patents.google.com/patent/US20130283344">developer does not need to know how to program or set up a set of rules for the purpose of generating a security profile</a>”. Instead, developers specify entitlements that represent the resources and capabilities their software needs to use (and hopefully no others).</p>
+<p>Entitlements are not specific to sandboxing; They are also used for <em>iCloud</em>, <em>Push Notifications</em> and <em>Apple Pay</em>, to name just a few. At its core, each <em>entitlement</em> is a key-value pair, where the key is a string identifying the entitlement and the value configures the entitlement. Values can be of any type supported in property lists, including booleans, strings, dictionaries or arrays. <em>Entitlements</em> are then simply a collection of a program’s individual capabilities. Developers add the entitlements their applications require using Xcode or manually by editing a property list file. This list is securely embedded in the target program as part of its code signature and cannot be tampered with without invaliding an app’s cryptographic code signature. Using the <code>codesign</code> utility shows you which entitlements are embedded in binaries on your system:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb3-1" title="1">$ <span class="ex">codesign</span> -d —entitlements :- /Applications/Calculator.app</a>
+<a class="sourceLine" id="cb3-2" title="2"><span class="va">Executable=</span>/Applications/Calculator.app/Contents/MacOS/Calculator</a>
+<a class="sourceLine" id="cb3-3" title="3"><span class="op">&lt;</span><span class="ex">?xml</span> version=“1.0” encoding=“UTF-8”?<span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-4" title="4"><span class="op">&lt;</span>!<span class="ex">DOCTYPE</span> plist PUBLIC “-//Apple//DTD PLIST 1.0//EN” “http://www.apple.com/DTDs/PropertyList-1.0.dtd”<span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-5" title="5"><span class="op">&lt;</span><span class="ex">plist</span> version=“1.0”<span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-6" title="6"><span class="op">&lt;</span><span class="ex">dict</span><span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-7" title="7">	<span class="op">&lt;</span><span class="ex">key</span><span class="op">&gt;</span>com.apple.security.app-sandbox<span class="op">&lt;</span>/key<span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-8" title="8">	<span class="op">&lt;</span><span class="ex">true</span>/<span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-9" title="9">	<span class="op">&lt;</span><span class="ex">key</span><span class="op">&gt;</span>com.apple.security.files.user-selected.read-write<span class="op">&lt;</span>/key<span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-10" title="10">	<span class="op">&lt;</span><span class="ex">true</span>/<span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-11" title="11">	<span class="op">&lt;</span><span class="ex">key</span><span class="op">&gt;</span>com.apple.security.network.client<span class="op">&lt;</span>/key<span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-12" title="12">	<span class="op">&lt;</span><span class="ex">true</span>/<span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-13" title="13">	<span class="op">&lt;</span><span class="ex">key</span><span class="op">&gt;</span>com.apple.security.print<span class="op">&lt;</span>/key<span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-14" title="14">	<span class="op">&lt;</span><span class="ex">true</span>/<span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-15" title="15"><span class="op">&lt;</span>/<span class="ex">dict</span><span class="op">&gt;</span></a>
+<a class="sourceLine" id="cb3-16" title="16"><span class="op">&lt;</span>/<span class="ex">plist</span><span class="op">&gt;</span></a></code></pre></div>
+<p>Here we see <code>Calculator.app</code>’s entitlements. Applications enabling the App Sandbox using the <code>com.apple.security.app-sandbox</code> entitlement are automatically sandboxed before any application code has the chance to execute (or so in theory…). Apple mandates sandboxing for applications from the MAS and ensures new apps possess this crucial entitlement. <code>Calculator.app</code> further declares entitlements allowing it to make outbound network connections (<code>*.network.client</code>), print, as well as read <em>and</em> write user-selected files. However, <code>Calculator.app</code> will for example never be able to use the microphone.</p>
+<p>The list of documented (and undocumented) entitlements grows with every new macOS release. Check out <a href="http://newosxbook.com/ent.jl">Levin’s entitlement database</a> and setup <a href="https://github.com/ChiChou/wiggle">wiggle</a> on your Mac to investigate further.</p>
+<p>In contrast to SBPL, entitlements are easy to understand and use. They hide the underlying complexity of the sandbox from developers, at the expense of policy flexibility.</p>
+<h2 id="architecture">Architecture</h2>
+<p>Apple’s sandbox is made up of components both in user space and in the kernel. Kernel components “<a href="https://patents.google.com/patent/US20130283344">increase security and provide an efficient mechanism</a>”. The following graphic and text gives an overview of some of these components and their interactions.</p>
+<figure>
+<img src="../assets/images/sandbox_tour/architecture.svg" alt="Overview: Sandboxing Architecture on macOS" /><figcaption>Overview: Sandboxing Architecture on macOS</figcaption>
+</figure>
+<p>It is important to understand that <strong>neither profiles written in SBPL nor the entitlements a program has are the <em>actual</em> sandbox security policy enforced at runtime</strong>. Instead, <code>libsandbox</code> (1) is responsible for <em>compiling</em> a sandbox profile for the application, which is then passed through the kernel (3) to the <code>Sandbox.kext</code> kernel extension (4) for enforcement. During runtime, this kernel extension interacts with <code>sandboxd</code> (2) for logging.</p>
+<p>macOS’s XNU kernel contains a port of TrustedBSD’s <em>mandatory access control</em> (MAC) framework, which notifies so-called <em>policy modules</em> whenever monitored functionality is accessed by processes. <code>Sandbox.kext</code> is one such policy module. It registers itself with the MAC framework on startup and is subsequently consulted whenever one of hundreds of monitored system calls is executed by a sandboxed program. Prior to executing the actual system call, hooks from the MAC framework call out to all registered policy modules. Each policy module can inspect the arguments and the current system state to decide whether the operation should proceed or not. If a single policy module denies an operation, the corresponding operating is cancelled and an error message is returned to the calling process (<a href="https://dl.packetstormsecurity.net/papers/general/apple-sandbox.pdf">h/t</a> <a href="https://twitter.com/justdionysus">@dion</a>).</p>
+<p><code>Sandbox.kext</code> queries the compiled sandbox profile to check whether requested operations are allowed. The sandbox additionally supports so called <em>dynamic extensions</em>. As the name implies, these are capabilities dynamically added and removed from an application’s sandbox during its runtime. For instance, if a user drags-and-drops a file into an application, the application’s sandbox is automatically extended to allow access to this file. I did not look at dynamic extensions in more detail in my thesis.</p>
+<h3 id="sandboxing-lifecycle">Sandboxing Lifecycle</h3>
+<figure>
+<img src="../assets/images/sandbox_tour/lifecycle.svg" alt="Overview: Sandboxing Lifecycle" /><figcaption>Overview: Sandboxing Lifecycle</figcaption>
+</figure>
+<p>As was already touched upon in the Threat Model, applications on macOS <em>always</em> start out non-sandboxed. During their lifetime, they can <em>become</em> sandboxed. Once sandboxed, an application cannot remove the restrictions again. There are two different ways for applications to end up sandboxed:</p>
+<ol type="1">
+<li>Given a textual SBPL sandboxing policy, programs can explicitly call <code>sandbox_init</code> or one of its variants to impose a sandbox on itself. This can be done at any point during the lifetime of a program and is completely voluntary. Though more powerful than using entitlements, it is significantly harder to configure, in addition to being deprecated and completely unsupported. Only <a href="https://www.google.com/search?q=site:opensource.apple.com+%22sandbox_init%22">Apple-internal daemons</a>, as well as complex third-party software such as <a href="https://hg.mozilla.org/mozilla-central/file/tip/security/sandbox/mac/SandboxPolicyContent.h">Mozilla’s Firefox</a> and <a href="https://www.chromium.org/developers/design-documents/sandbox/osx-sandboxing-design">Chromium</a> make use of this technique.</li>
+<li>If the code signature of the program contains entitlements configuring the sandbox, <code>dyld</code>, the dynamic linker, initialises the sandbox before control is passed to the program’s entry point. Sandbox initialisation in this way is involuntary in the sense that apps have no say in the matter. For an in-depth walkthrough of how this works, check out <a href="https://geosn0w.github.io/A-Long-Evening-With-macOS's-Sandbox/">this article</a> and refer to <a href="https://github.com/0xbf00/libsecinit">my own revere-engineered</a> <code>libsystem_secinit.dylib</code>, which reimplements part of puzzle. The App Sandbox is mandated for apps from the Mac App Store. Usually, if third party apps outside the store are sandboxed, they also use this technique.</li>
+</ol>
+<h2 id="a-closer-look-at-libsandbox">A Closer Look at <code>libsandbox</code></h2>
+<p>No matter whether the app makes use of the App Sandbox or uses the legacy sandboxing interface, at one point <code>libsandbox</code> will be invoked to compile the security profile for the application. Conceptually, this library does two different things, though they overlap in the actual implementation. Firstly, the library contains a custom Scheme interpreter based on <code>TinySCHEME</code>, modified to handle the full SBPL language. Secondly, it contains functionality to produce (<em>“compile”</em>) the sandbox bytecode for use by the sandbox’s kernel component.</p>
+<p>For applications using the legacy <code>sandbox_init</code> sandboxing interface directly, <code>libsandbox</code> is provided with a textual sandboxing profile written in a mixture of SBPL and Scheme. The library’s embedded interpreter <em>evaluates</em> (i.e. <em>executes</em>) this profile because, as described previously, SBPL profiles can contain arbitrary Scheme code that <em>generates sandbox rules during evaluation</em>. Recall the two <em>different</em> SBPL snippets shown previously that <em>resulted in identical bytecode</em>. The final ruleset generated during evaluation is then serialised and output in the opaque binary format.</p>
+<p>The ability to dynamically generate sandbox rules using Scheme code forms the foundation of the <em>App Sandbox</em>, which is used by the vast majority of applications. Here, <code>libsandbox</code> is invoked by the private <code>AppSandbox</code> framework, which first collects a number of inputs for <code>libsandbox</code>:</p>
+<ol type="1">
+<li><em>Entitlements</em>: These are extracted from the code signature of the application</li>
+<li><em>Additional Parameters</em>: Values such as an app’s bundle identifier and the path to the user’s home directory. These might be referenced by <em>sandbox snippets</em> (see below) during evaluation.</li>
+<li><em>Sandbox Snippets</em>: A list of SBPL profiles to evaluate, the most important one being the abstract <code>application.sb</code> application sandboxing base profile. In addition, some of Apple’s frameworks require custom sandbox rules to function properly. These rules are specified in a <code>.sb</code> file as part of the framework bundle. When an application links against such a framework, the corresponding sandbox snippet is included in the list, too.</li>
+</ol>
+<figure>
+<img src="../assets/images/sandbox_tour/libsandbox_flow.svg" alt="Overview: Inner Workings of libsandbox" /><figcaption>Overview: Inner Workings of <code>libsandbox</code></figcaption>
+</figure>
+<p>Profile compilation for the App Sandbox is slightly more complicated compared to the legacy sandboxing mechanism. Starting out, <code>libsandbox</code> makes entitlements and additional parameters available to SBPL profiles (scripts) it evaluates. It then starts by evaluating <code>application.sb</code> (referred to as <em>“abstract base profile”</em> in the graphic). This profile, which you can find on your system under <code>/System/Library/Sandbox/Profiles/application.sb</code>, dynamically generates sandbox rules while taking into account supplied entitlements and parameters. As shown in the graphic for example, the <code>(allow device-microphone)</code> sandbox rule is only emitted if the application possesses one of the sanctioned entitlements. Similarly, the profile references the user’s home directory (supplied as part of the /additional parameters/) using the <code>param</code> function to emit correct paths for the user’s machine. Lastly, each additional SBPL snippet is evaluated, building the final list of sandbox rules (referred to in the graphic as <em>“concrete app profile”</em>). Note that while the graphic shows the <em>concrete app profile</em> as consisting of human-readable SBPL rules, this is a simplification. In reality the rules are encoded in complex data structures within <code>libsandbox</code>, which are finally <em>compiled</em> into the opaque binary format for <code>Sandbox.kext</code> to use.</p>
+<p>I motivated this post by saying that sandboxing’s effectiveness depends on proper configuration. To decide whether <em>anything</em> is proper or not, you need to be able to look at (<em>audit</em>) it. Can you be sure what rules complex Scheme code will generate? Do you know what each entitlement <em>actually does</em> to your sandbox? To answer these questions, you would need access to a human-readable version of the <em>actual sandbox profile</em>. Unfortunately, there is no such thing on macOS. You have to trust the system “just works”.</p>
+</div>
+</div>
+        <div id="footer">
+            Site created using <a target="_blank" href="http://jaspervdj.be/hakyll">Hakyll</a>.
+        </div>
+    </div>
+</body>
+</html>

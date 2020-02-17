@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xl="http://www.w3.org/1999/xlink" xmlns:dc="http://purl.org/dc/elements/1.1/" version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="-376.5079 3891.9175 1013.9239 665.0904" width="1013.9239" height="665.0904">
+  <defs>
+    <font-face font-family="Source Code Pro" font-size="26" panose-1="2 11 5 9 3 4 3 2 2 4" units-per-em="1000" underline-position="-75" underline-thickness="50" slope="0" x-height="480" cap-height="660" ascent="983.9935" descent="-272.995" font-weight="500">
+      <font-face-src>
+        <font-face-name name="SourceCodePro-Medium"/>
+      </font-face-src>
+    </font-face>
+    <font-face font-family="Helvetica Neue" font-size="24" panose-1="2 11 6 4 2 2 2 2 2 4" units-per-em="1000" underline-position="-75" underline-thickness="50" slope="0" x-height="517" cap-height="714" ascent="975.0061" descent="-216.99524" font-weight="500">
+      <font-face-src>
+        <font-face-name name="HelveticaNeue-Medium"/>
+      </font-face-src>
+    </font-face>
+    <font-face font-family="Helvetica Neue" font-size="24" panose-1="2 0 5 3 0 0 0 2 0 4" units-per-em="1000" underline-position="-100" underline-thickness="50" slope="0" x-height="517" cap-height="714" ascent="951.9958" descent="-212.99744" font-weight="400">
+      <font-face-src>
+        <font-face-name name="HelveticaNeue"/>
+      </font-face-src>
+    </font-face>
+    <font-face font-family="Source Code Pro" font-size="16" panose-1="2 11 5 9 3 4 3 2 2 4" units-per-em="1000" underline-position="-75" underline-thickness="50" slope="0" x-height="480" cap-height="660" ascent="983.9935" descent="-272.995" font-weight="400">
+      <font-face-src>
+        <font-face-name name="SourceCodePro-Regular"/>
+      </font-face-src>
+    </font-face>
+    <font-face font-family="Source Code Pro" font-size="22" panose-1="2 11 5 9 3 4 3 2 2 4" units-per-em="1000" underline-position="-75" underline-thickness="50" slope="0" x-height="480" cap-height="660" ascent="983.9935" descent="-272.995" font-weight="400">
+      <font-face-src>
+        <font-face-name name="SourceCodePro-Regular"/>
+      </font-face-src>
+    </font-face>
+    <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="FilledBall_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -4 8 8" markerWidth="8" markerHeight="8" color="black">
+      <g>
+        <circle cx="2.9999986" cy="0" r="2.99999734868332" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      </g>
+    </marker>
+    <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="FilledBall_Marker_2" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-7 -4 8 8" markerWidth="8" markerHeight="8" color="black">
+      <g>
+        <circle cx="-2.9999986" cy="0" r="2.99999734868332" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      </g>
+    </marker>
+    <font-face font-family="Helvetica Neue" font-size="14" panose-1="2 0 8 3 0 0 0 9 0 4" units-per-em="1000" underline-position="-100" underline-thickness="50" slope="0" x-height="517" cap-height="714" ascent="975.0061" descent="-216.99524" font-weight="700">
+      <font-face-src>
+        <font-face-name name="HelveticaNeue-Bold"/>
+      </font-face-src>
+    </font-face>
+    <font-face font-family="Helvetica Neue" font-size="14" panose-1="2 0 5 3 0 0 0 2 0 4" units-per-em="1000" underline-position="-100" underline-thickness="50" slope="0" x-height="517" cap-height="714" ascent="951.9958" descent="-212.99744" font-weight="400">
+      <font-face-src>
+        <font-face-name name="HelveticaNeue"/>
+      </font-face-src>
+    </font-face>
+    <font-face font-family="Source Code Pro" font-size="14" panose-1="2 11 5 9 3 4 3 2 2 4" units-per-em="1000" underline-position="-75" underline-thickness="50" slope="0" x-height="480" cap-height="660" ascent="983.9935" descent="-272.995" font-weight="400">
+      <font-face-src>
+        <font-face-name name="SourceCodePro-Regular"/>
+      </font-face-src>
+    </font-face>
+  </defs>
+  <metadata> Produced by OmniGraffle 7.11.5 
+    <dc:date>2020-02-17 12:41:49 +0000</dc:date>
+  </metadata>
+  <g id="Canvas_1" stroke-opacity="1" fill-opacity="1" stroke="none" fill="none" stroke-dasharray="none">
+    <title>Canvas 1</title>
+    <g id="Canvas_1: Layer 1">
+      <title>Layer 1</title>
+      <g id="Graphic_82">
+        <rect x="-186.3891" y="4016" width="599.783" height="270" fill="#bdbdbd"/>
+        <rect x="-186.3891" y="4016" width="599.783" height="270" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(-181.3891 4026)" fill="black" xml:space="preserve">
+          <tspan font-family="Source Code Pro" font-size="26" font-weight="500" fill="black" x="216.8915" y="26">libsandbox</tspan>
+        </text>
+      </g>
+      <g id="Graphic_81">
+        <rect x="-165.8891" y="4069" width="331.6891" height="195" fill="#e8e8e8"/>
+        <rect x="-165.8891" y="4069" width="331.6891" height="195" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(-160.8891 4079)" fill="black" xml:space="preserve">
+          <tspan font-family="Helvetica Neue" font-size="24" font-weight="500" fill="black" x="48.59656" y="23">SCHEME Interpreter</tspan>
+        </text>
+      </g>
+      <g id="Graphic_80">
+        <rect x="284.2" y="4069" width="110.6" height="195" fill="#e8e8e8"/>
+        <rect x="284.2" y="4069" width="110.6" height="195" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(289.2 4079)" fill="black" xml:space="preserve">
+          <tspan font-family="Helvetica Neue" font-size="24" font-weight="500" fill="black" x=".06799924" y="23">Compiler</tspan>
+        </text>
+      </g>
+      <g id="Graphic_79">
+        <path d="M 284.20627 4228 L 350.37897 4182 L 284.20627 4136 L 165.54672 4136 L 99.37402 4136 L 165.54672 4182 L 99.37402 4228 L 165.54672 4228 Z" fill="white"/>
+        <path d="M 284.20627 4228 L 350.37897 4182 L 284.20627 4136 L 165.54672 4136 L 99.37402 4136 L 165.54672 4182 L 99.37402 4228 L 165.54672 4228 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(104.37402 4153.328)" fill="black" xml:space="preserve">
+          <tspan font-family="Helvetica Neue" font-size="24" font-weight="400" fill="black" x="68.05047" y="23"> Concrete</tspan>
+          <tspan font-family="Helvetica Neue" font-size="24" font-weight="400" fill="black" x="54.71847" y="51.672">  App Profile</tspan>
+        </text>
+      </g>
+      <g id="Graphic_78">
+        <path d="M 513.3933 4228 L 579.566 4182 L 513.3933 4136 L 394.73373 4136 L 328.56103 4136 L 394.73373 4182 L 328.56103 4228 L 394.73373 4228 Z" fill="white"/>
+        <path d="M 513.3933 4228 L 579.566 4182 L 513.3933 4136 L 394.73373 4136 L 328.56103 4136 L 394.73373 4182 L 328.56103 4228 L 394.73373 4228 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(333.56103 4153.328)" fill="black" xml:space="preserve">
+          <tspan font-family="Helvetica Neue" font-size="24" font-weight="400" fill="black" x="80.06247" y="23">  Profile </tspan>
+          <tspan font-family="Helvetica Neue" font-size="24" font-weight="400" fill="black" x="62.49447" y="51.672">  Bytecode</tspan>
+        </text>
+      </g>
+      <g id="Graphic_108">
+        <path d="M 60.47882 4215.859 L 126.65152 4169.859 L 60.47882 4123.859 L -58.18073 4123.859 L -124.35343 4123.859 L -58.18073 4169.859 L -124.35343 4215.859 L -58.18073 4215.859 Z" fill="white"/>
+        <path d="M 60.47882 4215.859 L 126.65152 4169.859 L 60.47882 4123.859 L -58.18073 4123.859 L -124.35343 4123.859 L -58.18073 4169.859 L -124.35343 4215.859 L -58.18073 4215.859 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_106">
+        <path d="M 57.43142 4222.067 L 123.60411 4176.067 L 57.43142 4130.067 L -61.228135 4130.067 L -127.40083 4130.067 L -61.228135 4176.067 L -127.40083 4222.067 L -61.228135 4222.067 Z" fill="white"/>
+        <path d="M 57.43142 4222.067 L 123.60411 4176.067 L 57.43142 4130.067 L -61.228135 4130.067 L -127.40083 4130.067 L -61.228135 4176.067 L -127.40083 4222.067 L -61.228135 4222.067 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_77">
+        <path d="M 55.01926 4228 L 121.19196 4182 L 55.01926 4136 L -63.64029 4136 L -129.81299 4136 L -63.64029 4182 L -129.81299 4228 L -63.64029 4228 Z" fill="white"/>
+        <path d="M 55.01926 4228 L 121.19196 4182 L 55.01926 4136 L -63.64029 4136 L -129.81299 4136 L -63.64029 4182 L -129.81299 4228 L -63.64029 4228 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(-124.81299 4153.328)" fill="black" xml:space="preserve">
+          <tspan font-family="Helvetica Neue" font-size="24" font-weight="400" fill="black" x="65.15847" y="23">   Abstract</tspan>
+          <tspan font-family="Helvetica Neue" font-size="24" font-weight="400" fill="black" x="46.28247" y="51.672">   Base Profile</tspan>
+        </text>
+      </g>
+      <g id="Graphic_76">
+        <path d="M -165.99258 4228 L -107.99505 4182 L -165.99258 4136 L -359 4136 L -359 4228 Z" fill="white"/>
+        <path d="M -165.99258 4228 L -107.99505 4182 L -165.99258 4136 L -359 4136 L -359 4228 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(-354 4167.664)" fill="black" xml:space="preserve">
+          <tspan font-family="Helvetica Neue" font-size="24" font-weight="400" fill="black" x="0" y="23">     Entitlements</tspan>
+        </text>
+      </g>
+      <g id="Graphic_86">
+        <rect x="-359" y="3927" width="219.99753" height="96" fill="white"/>
+        <rect x="-359" y="3927" width="219.99753" height="96" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(-354 3935)" fill="black" xml:space="preserve">
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="16">...</tspan>
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="36">&lt;key&gt;microphone&lt;/key&gt;</tspan>
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="56">&lt;true/&gt;</tspan>
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="76">...</tspan>
+        </text>
+      </g>
+      <g id="Graphic_87">
+        <rect x="-188.1992" y="4341" width="376.3093" height="119" fill="white"/>
+        <rect x="-188.1992" y="4341" width="376.3093" height="119" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(-183.1992 4350.5)" fill="black" xml:space="preserve">
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="16">...</tspan>
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="36">(when (or (entitlement &quot;microphone&quot;)</tspan>
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="56">          (entitlement &quot;audio-input&quot;))</tspan>
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="76">      (allow device-microphone))</tspan>
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="96">...</tspan>
+        </text>
+      </g>
+      <g id="Graphic_88">
+        <rect x="93.3765" y="3927" width="263" height="96" fill="white"/>
+        <rect x="93.3765" y="3927" width="263" height="96" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(98.3765 3945)" fill="black" xml:space="preserve">
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="16">...</tspan>
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="36">(allow device-microphone)</tspan>
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="black" x="0" y="56">...</tspan>
+        </text>
+      </g>
+      <g id="Graphic_89">
+        <rect x="288.21895" y="4341" width="331.6891" height="119" fill="white"/>
+        <rect x="288.21895" y="4341" width="331.6891" height="119" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(293.21895 4344.5)" fill="black" xml:space="preserve">
+          <tspan font-family="Source Code Pro" font-size="22" font-weight="400" fill="black" x="0" y="22">00: 0000 2b00 0100 2c00</tspan>
+          <tspan font-family="Source Code Pro" font-size="22" font-weight="400" fill="black" x="0" y="50">08: 0000 2a00 2a00 2a00 </tspan>
+          <tspan font-family="Source Code Pro" font-size="22" font-weight="400" fill="black" x="0" y="78">10: 2a00 2a00 2a00 2900</tspan>
+          <tspan font-family="Source Code Pro" font-size="22" font-weight="400" fill="black" x="0" y="106">18: 2a00 2a00 2a00 2a00</tspan>
+        </text>
+      </g>
+      <g id="Line_92">
+        <line x1="-276" y1="4044.6944" x2="-276" y2="4112.853" marker-end="url(#FilledBall_Marker)" marker-start="url(#FilledBall_Marker_2)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_93">
+        <line x1="-2.5" y1="4324.5" x2="-2.5" y2="4245.5" marker-end="url(#FilledBall_Marker)" marker-start="url(#FilledBall_Marker_2)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_95">
+        <line x1="217.07364" y1="4043.305" x2="217.92636" y2="4118.562" marker-end="url(#FilledBall_Marker)" marker-start="url(#FilledBall_Marker_2)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_96">
+        <line x1="452.5" y1="4323" x2="452.5" y2="4244" marker-end="url(#FilledBall_Marker)" marker-start="url(#FilledBall_Marker_2)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_104">
+        <rect x="-225.2028" y="4323.5" width="144.16225" height="35.117647" fill="#666"/>
+        <rect x="-225.2028" y="4323.5" width="144.16225" height="35.117647" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(-220.2028 4331.059)" fill="white" xml:space="preserve">
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="white" x="4.6811234" y="16">SCHEME &amp; SBPL</tspan>
+        </text>
+      </g>
+      <g id="Graphic_105">
+        <rect x="66" y="3909.4254" width="55.19196" height="35.117647" fill="#666"/>
+        <rect x="66" y="3909.4254" width="55.19196" height="35.117647" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(71 3916.984)" fill="white" xml:space="preserve">
+          <tspan font-family="Source Code Pro" font-size="16" font-weight="400" fill="white" x="3.3959778" y="16">SBPL</tspan>
+        </text>
+      </g>
+      <g id="Graphic_110">
+        <text transform="translate(-191.20297 4517)" fill="black">
+          <tspan font-family="Helvetica Neue" font-size="14" font-weight="700" fill="black" x="0" y="14">Note</tspan>
+          <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="black" y="14">: In this graphic, the entitlement prefix </tspan>
+          <tspan font-family="Source Code Pro" font-size="14" font-weight="400" fill="black" y="14">"com.apple.security.device"</tspan>
+          <tspan font-family="Helvetica Neue" font-size="14" font-weight="400" fill="black" y="14"> was omitted for brevity.</tspan>
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
