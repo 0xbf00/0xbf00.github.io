@@ -10,14 +10,14 @@
     </author>
     <updated>2020-02-21T00:00:00Z</updated>
     <entry>
-    <title>Its Simbple: Peeking Inside App Sandbox Profiles</title>
+    <title>It's Simbple: Peeking Inside App Sandbox Profiles</title>
     <link href="https://ubrigens.com/posts/simbple.html" />
     <id>https://ubrigens.com/posts/simbple.html</id>
     <published>2020-02-21T00:00:00Z</published>
     <updated>2020-02-21T00:00:00Z</updated>
     <summary type="html"><![CDATA[<div class="post">
     <h2>
-        Its Simbple: Peeking Inside App Sandbox Profiles
+        It's Simbple: Peeking Inside App Sandbox Profiles
         <span class="date">February 21, 2020</span>
     </h2>
     <p>I concluded <a href="https://ubrigens.com/posts/sandbox_tour.html">my previous post</a> by motivating that we should be able to audit the sandbox configurations of apps we run. Because of the way the App Sandbox works on macOS, this means we need access to a human-readable version of the sandbox profile <em>generated</em> by <code>libsandbox.dylib</code>. Unfortunately, this is not something that Apple’s software currently allows for.</p>
