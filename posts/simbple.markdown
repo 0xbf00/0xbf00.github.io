@@ -1,5 +1,5 @@
 ---
-title: "Its Simbple: Peeking Inside App Sandbox Profiles"
+title: "It's Simbple: Peeking Inside App Sandbox Profiles"
 date: February 21, 2020
 ---
 
