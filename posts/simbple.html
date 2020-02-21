@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, maximum-scale=1.0">
+    <meta name="description" content="Ubrigens is a small site dedicated to all things Infosec.">
+    <title>Ubrigens | Its Simbple: Peeking Inside App Sandbox Profiles</title>
+    <link rel="stylesheet" type="text/css" href="../assets/css/default.css" />
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <script src="../assets/js/main.js"></script>
+    <script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-58005603-2', 'auto');
+  ga('set', 'anonymizeIp', true);
+  ga('send', 'pageview');
+
+</script>
+    <link rel="shortcut icon" type="image/png" href="../assets/images/favicon.png">
+    <link rel="shortcut icon" type="image/png" href="https://ubrigens.com/assets/images/favicon.png" !>
+</head>
+<body>
+    <div id="page" class="cf">
+        <div id="header" class="cf">
+            <a href="../" class="logo">Ü</a>
+            <ul class="nav cf">
+                <li><a href="../">Home</a></li>
+                <li><a href="../about.html">About</a></li>
+            </ul>
+        </div>
+        <div id="content"><div class="post">
+    <h2>
+        Its Simbple: Peeking Inside App Sandbox Profiles
+        <span class="date">February 21, 2020</span>
+    </h2>
+    <p>I concluded <a href="../posts/sandbox_tour.html">my previous post</a> by motivating that we should be able to audit the sandbox configurations of apps we run. Because of the way the App Sandbox works on macOS, this means we need access to a human-readable version of the sandbox profile <em>generated</em> by <code>libsandbox.dylib</code>. Unfortunately, this is not something that Apple’s software currently allows for.</p>
+<p>There have been numerous projects that <em>decompile</em> sandbox bytecode back to a human-readable representation, most notably Blazakis’s <a href="https://github.com/dionthegod/XNUSandbox">XNUSandbox project</a>, Esser’s <a href="https://github.com/sektioneins/sandbox_toolkit/tree/master/sb2dot">sb2dot</a>, work by <a href="https://argp.github.io/research/">argp</a> and <a href="https://github.com/malus-security/sandblaster">SandBlaster</a>. These tools are necessary on iOS; Profiles there are only available in binary form. Most of these tools however suffer from two problems. Firstly, they are hard to keep up to date, as even small changes to the bytecode format break the tooling. Secondly, most of the tools do not produce syntactically valid SBPL and therefore cannot be recompiled. As a result, it is not possible to verify their output.</p>
+<p>On macOS, things are generally simpler: Rather than reverse engineering the sandbox bytecode format, I reverse engineered how <code>libsandbox</code> internally handles entitlements, sandbox snippets and parameters to evaluate and compile sandbox profiles.</p>
+<p>The result of this research is <a href="https://github.com/0xbf00/simbple"><code>simbple</code></a>, a tool that reimplements the profile evaluation process done in <code>libsandbox</code> but outputs verifiably correct, human-readable SBPL.</p>
+<p>Note that <a href="https://twitter.com/sdotknight/status/1230222846120644608">@sdotknight rightfully points</a> out that there is a platform profile that <em>also</em> affects sandboxing on macOS. My approach here only considers the sandbox profile generated in userland and does not consider the platform profile, which is embedded inside of <code>Sandbox.kext</code>.</p>
+<h2 id="the-anatomy-of-container.plist-files-on-macos">The Anatomy of Container.plist files on macOS</h2>
+<p><code>simbple</code> takes as input an apps’ <code>Container.plist</code> file, which can be found under <code>~/Library/Containers/bundle_id/</code>. This binary-encoded plist file contains lots of useful information (<em>note</em>: launch the target app once to generate the file). Follow along using:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb1-1" title="1"><span class="co"># Built-in tools, always available</span></a>
+<a class="sourceLine" id="cb1-2" title="2">$ <span class="ex">plutil</span> -convert xml1 /path/to/Container.plist -o -</a>
+<a class="sourceLine" id="cb1-3" title="3"><span class="co"># Levin's excellent tools. Display the information in a simpler format.</span></a>
+<a class="sourceLine" id="cb1-4" title="4">$ <span class="ex">jlutil</span> /path/to/Container.plist</a></code></pre></div>
+<p>Likely taking up the most space in any <code>Container.plist</code>, the <code>SandboxProfileData</code> key holds the base64-encoded binary sandbox profile compiled by <code>libsandbox</code>.</p>
+<p>Grouped under <code>SandboxProfileDataValidationInfo</code> are inputs <code>libsandbox</code> uses to compile sandbox profiles:</p>
+<ol type="1">
+<li><code>SandboxProfileDataValidationParametersKey</code> — Contains several “global variables” such as the user’s home directory (stored as <code>_HOME</code>), her username (<code>_USER</code>) and various (auto-generated) paths to the application bundle and temporary directories.</li>
+<li><code>SandboxProfileDataValidationRedirectablePathsKey</code> — approved paths that may be accessed through symlinks</li>
+<li><code>SandboxProfileDataValidationEntitlementsKey</code> — An app’s entitlements.</li>
+<li><code>SandboxProfileDataValidationSnippetDictionariesKey</code> — A list of sandbox <em>snippets</em> (see previous post) included in the final profile. Each snippet is described by two keys, though only one of them — <code>AppSandboxProfileSnippetPathKey</code> — is important here. It specifies the file system path to the snippet.</li>
+</ol>
+<h2 id="using-simbple">Using <code>simbple</code></h2>
+<p><code>simbple</code> uses existing <code>Container.plist</code> files to reuse the same parameters that were initially used by the system. This simplifies the design of the tool.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb2-1" title="1">$ <span class="ex">simbple</span> --help</a>
+<a class="sourceLine" id="cb2-2" title="2"><span class="ex">Usage</span>: simbple [OPTION...] CONTAINER_METADATA</a>
+<a class="sourceLine" id="cb2-3" title="3"><span class="ex">Evaluate</span> a SBPL (+ Scheme) <span class="ex">profile</span></a>
+<a class="sourceLine" id="cb2-4" title="4"></a>
+<a class="sourceLine" id="cb2-5" title="5">  <span class="ex">-o</span>, --output=FILE          Output file</a>
+<a class="sourceLine" id="cb2-6" title="6">  <span class="ex">-p</span>, --profile=PROFILE      Base profile to evaluate. Defaults to</a>
+<a class="sourceLine" id="cb2-7" title="7">                             <span class="ex">application.sb</span> profile.</a>
+<a class="sourceLine" id="cb2-8" title="8">      <span class="ex">--platforms</span>=PLATFORM   sierra, high_sierra, mojave (default), <span class="ex">catalina</span></a>
+<a class="sourceLine" id="cb2-9" title="9"></a>
+<a class="sourceLine" id="cb2-10" title="10"> <span class="ex">Output</span> formats:</a>
+<a class="sourceLine" id="cb2-11" title="11">      <span class="ex">--json</span>                 Output as JSON</a>
+<a class="sourceLine" id="cb2-12" title="12">      <span class="ex">--scheme</span>               Output as SCHEME / SBPL</a>
+<a class="sourceLine" id="cb2-13" title="13"></a>
+<a class="sourceLine" id="cb2-14" title="14"> <span class="ex">Misc</span> options:</a>
+<a class="sourceLine" id="cb2-15" title="15">      <span class="ex">--patch</span>                Patch the output profile to log all statements.</a>
+<a class="sourceLine" id="cb2-16" title="16">      <span class="ex">--verify</span>               Verify semantic correctness of generated results</a>
+<a class="sourceLine" id="cb2-17" title="17"></a>
+<a class="sourceLine" id="cb2-18" title="18">  <span class="ex">-?</span>, --help                 Give this help list</a>
+<a class="sourceLine" id="cb2-19" title="19">      <span class="ex">--usage</span>                Give a short usage message</a>
+<a class="sourceLine" id="cb2-20" title="20">  <span class="ex">-V</span>, --version              Print program version</a>
+<a class="sourceLine" id="cb2-21" title="21"></a>
+<a class="sourceLine" id="cb2-22" title="22"><span class="ex">Mandatory</span> or optional arguments to long options are also mandatory or optional</a>
+<a class="sourceLine" id="cb2-23" title="23"><span class="kw">for</span> <span class="ex">any</span> corresponding short options.</a>
+<a class="sourceLine" id="cb2-24" title="24"></a>
+<a class="sourceLine" id="cb2-25" title="25"><span class="ex">The</span> output is a simplified SBPL profile that can be analysed, modified and</a>
+<a class="sourceLine" id="cb2-26" title="26"><span class="ex">compiled</span> as is.</a></code></pre></div>
+<p>In its simplest form, simply invoke <code>simbple</code> with a path to the <code>Container.plist</code> file of the app you are interested in. Doing so will spit out the SBPL profile of the target app:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb3-1" title="1">$ <span class="ex">simbple</span> ~/Library/Containers/com.apple.calculator/Container.plist</a>
+<a class="sourceLine" id="cb3-2" title="2"><span class="kw">(</span><span class="ex">version</span> 1<span class="kw">)</span></a>
+<a class="sourceLine" id="cb3-3" title="3"><span class="kw">(</span><span class="ex">deny</span></a>
+<a class="sourceLine" id="cb3-4" title="4">    <span class="ex">default</span></a>
+<a class="sourceLine" id="cb3-5" title="5"><span class="kw">)</span></a>
+<a class="sourceLine" id="cb3-6" title="6"><span class="kw">(</span><span class="ex">allow</span></a>
+<a class="sourceLine" id="cb3-7" title="7">    <span class="ex">mach-register</span></a>
+<a class="sourceLine" id="cb3-8" title="8">    <span class="kw">(</span><span class="ex">local-name-prefix</span> <span class="st">&quot;&quot;</span><span class="kw">)</span></a>
+<a class="sourceLine" id="cb3-9" title="9"><span class="kw">)</span></a>
+<a class="sourceLine" id="cb3-10" title="10"><span class="kw">(</span><span class="ex">allow</span></a>
+<a class="sourceLine" id="cb3-11" title="11">    <span class="ex">mach-lookup</span></a>
+<a class="sourceLine" id="cb3-12" title="12">    <span class="kw">(</span><span class="ex">xpc-service-name-prefix</span> <span class="st">&quot;&quot;</span><span class="kw">)</span></a>
+<a class="sourceLine" id="cb3-13" title="13"><span class="kw">)</span></a>
+<a class="sourceLine" id="cb3-14" title="14"><span class="co"># &gt; 1800 lines follow on my system</span></a></code></pre></div>
+<p>The resulting sandbox profiles can be manually audited and modified, automatically patched or simply be compiled to profile bytecode using <a href="https://github.com/sektioneins/sandbox_toolkit/tree/master/compile_sb">Stefan Esser’s tool</a>. The results are useful not only to security researchers interested in studying the sandbox, but also for example to developers debugging their sandboxed applications.</p>
+<p>To verify that results are <em>correct</em> — meaning compiling the output results in identical sandbox bytecode to <code>libsandbox</code>’s result — use the <code>--verify</code> option. This is yet another benefit of using existing <code>Container.plist</code> files. We can use the <code>SandboxProfileData</code> data as ground truth to check against. Sandbox compilation is still a (<a href="https://github.com/0xbf00/simbple/blob/e4211c3428a417e351b7487990d00db2a71b3b69/src/sb/verify.c#L46">mostly</a>) deterministic process.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb4-1" title="1">$ <span class="ex">simbple</span> ~/Library/Containers/com.apple.calculator/Container.plist -o /dev/null --verify</a>
+<a class="sourceLine" id="cb4-2" title="2">$ <span class="bu">echo</span> <span class="va">$?</span></a>
+<a class="sourceLine" id="cb4-3" title="3"><span class="ex">0</span> <span class="co"># Verification succeeded.</span></a></code></pre></div>
+<h2 id="a-teaser-the-story-of-cve-2018-4184">A Teaser: The Story of CVE-2018-4184</h2>
+<p><a href="https://support.apple.com/en-us/HT208849">macOS 10.13.5 fixed CVE-2018-4184</a>, an issue with “the handling of microphone access” I reported in 2018:</p>
+<pre><code>*Speech*
+	Available for: macOS High Sierra 10.13.4
+	Impact: A sandboxed process may be able to circumvent sandbox restrictions
+	Description: A sandbox issue existed in the handling of microphone access. This issue was addressed with improved handling of microphone access.
+	CVE-2018-4184: Jakob Rieck (@0xdead10cc) of the Security in Distributed Systems Group, University of Hamburg</code></pre>
+<p>What was the problem? Virtually every app — no matter their entitlements — was able to use the microphone on macOS. How did I figure this out? Well, I was developing <code>simbple</code> and thought my tool couldn’t possibly work correctly: scrolling through <code>Calculator.app</code>’s results, I noticed this line in the generated profile:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scheme"><code class="sourceCode scheme"><a class="sourceLine" id="cb6-1" title="1">(allow device-microphone)</a></code></pre></div>
+<p>Refer back to my previous post to see <code>Calculator.app</code>’s entitlements, which notably do not (and did not) allow the app access to the microphone. What was going on?!</p>
+</div>
+</div>
+        <div id="footer">
+            Site created using <a target="_blank" href="http://jaspervdj.be/hakyll">Hakyll</a>. <a target="_blank" href="../atom.xml">Subscribe</a>.
+        </div>
+    </div>
+</body>
+</html>
