@@ -137,7 +137,8 @@ code {
 pre {
     border: 1px solid #CCCCCC;
     line-height: 1.25em;
-    overflow: auto;
+    overflow: scroll;
+    -webkit-overflow-scrolling: touch;
     padding: 6px 10px;
 }
 
