@@ -8,8 +8,70 @@
         <name>Jakob Rieck</name>
         <email>jakobrieck+blog@gmail.com</email>
     </author>
-    <updated>2020-02-21T00:00:00Z</updated>
+    <updated>2020-02-26T00:00:00Z</updated>
     <entry>
+    <title>"Linking a Microphone" Or: The Story of CVE-2018-4184</title>
+    <link href="https://ubrigens.com/posts/linking_a_microphone.html" />
+    <id>https://ubrigens.com/posts/linking_a_microphone.html</id>
+    <published>2020-02-26T00:00:00Z</published>
+    <updated>2020-02-26T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="post">
+    <h2>
+        "Linking a Microphone" Or: The Story of CVE-2018-4184
+        <span class="date">February 26, 2020</span>
+    </h2>
+    <p>Developing and testing <a href="https://github.com/0xbf00/simbple"><code>simbple</code></a>, my SBPL interpreter, at the beginning of 2018, I thought my tool couldn’t possibly work correctly: scrolling through the results it yielded for <code>Calculator.app</code> — needless to say my main test application — I noticed this line in the generated profile:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scheme"><code class="sourceCode scheme"><a class="sourceLine" id="cb1-1" title="1">(allow device-microphone)</a></code></pre></div>
+<p>Trying to figure out what went wrong, I created a minimal test case: taking <code>Calculator.app</code>’s Container file, I reduced it down to its core, stripping most entitlements, as many variables as possible and all sandbox snippets except for the <code>application.sb</code> base profile. To my surprise, the line displayed above disappeared. Eventually, I realised that the sandbox snippet associated with <code>SpeechRecognitionCore.framework</code> was to blame. This is what the snippet looked like:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scheme"><code class="sourceCode scheme"><a class="sourceLine" id="cb2-1" title="1"><span class="co">;;</span></a>
+<a class="sourceLine" id="cb2-2" title="2"><span class="co">;; Speech Recognition Core framework - sandbox profile</span></a>
+<a class="sourceLine" id="cb2-3" title="3"><span class="co">;; Copyright (c) 2013 Apple Inc. All Rights reserved.</span></a>
+<a class="sourceLine" id="cb2-4" title="4"><span class="co">;;</span></a>
+<a class="sourceLine" id="cb2-5" title="5"><span class="co">;; WARNING: The sandbox rules in this file currently constitute</span></a>
+<a class="sourceLine" id="cb2-6" title="6"><span class="co">;; Apple System Private Interface and are subject to change at any time and</span></a>
+<a class="sourceLine" id="cb2-7" title="7"><span class="co">;; without notice. The contents of this file are also auto-generated and not</span></a>
+<a class="sourceLine" id="cb2-8" title="8"><span class="co">;; user editable; it may be overwritten at any time.</span></a>
+<a class="sourceLine" id="cb2-9" title="9"><span class="co">;;</span></a>
+<a class="sourceLine" id="cb2-10" title="10">(allow device-microphone)</a></code></pre></div>
+<p>But what does <code>SpeechRecognitionCore</code> have to do with <code>Calculator.app</code>?</p>
+<h2 id="a-second-look-at-sandbox-snippets">A Second Look at Sandbox Snippets</h2>
+<p><a href="https://ubrigens.com/posts/sandbox_tour.html">In my introductory post</a> about the App Sandbox, I listed the inputs <code>libsandbox</code> receives to build the sandbox profile for a specific app. Among them were <em>sandbox snippets</em>, a list of SBPL profiles that are evaluated to build the final list of sandbox rules. In addition to <code>application.sb</code>, which forms the foundation of the App Sandbox, your app can depend on external (system) frameworks and libraries. These frameworks may require additional, custom sandbox rules to function properly, which are specified in the <code>Resources/framework.sb</code> file as part of the framework bundle. Note that while such additional sandbox rules theoretically are required by that framework only, the sandbox works on a per-process basis. Because application and framework code runs in the same process, they also affect the application.</p>
+<p>On my system, <code>Calculator.app</code> links with 11 frameworks / libraries</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb3-1" title="1">$ <span class="ex">otool</span> -L /Applications/Calculator.app/Contents/MacOS/Calculator </a>
+<a class="sourceLine" id="cb3-2" title="2"><span class="ex">/Applications/Calculator.app/Contents/MacOS</span>/Calculator:</a>
+<a class="sourceLine" id="cb3-3" title="3">	<span class="ex">/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit</span> (compatibility version 45.0.0, current version 1671.40.104)</a>
+<a class="sourceLine" id="cb3-4" title="4">	<span class="ex">/System/Library/Frameworks/Cocoa.framework/Versions/A/Cocoa</span> (compatibility version 1.0.0, current version 23.0.0)</a>
+<a class="sourceLine" id="cb3-5" title="5">	<span class="ex">/System/Library/PrivateFrameworks/SpeechDictionary.framework/Versions/A/SpeechDictionary</span> (compatibility version 1.0.0, current version 1.0.0)</a>
+<a class="sourceLine" id="cb3-6" title="6">	<span class="ex">/System/Library/PrivateFrameworks/SpeechObjects.framework/Versions/A/SpeechObjects</span> (compatibility version 1.0.0, current version 1.0.0)</a>
+<a class="sourceLine" id="cb3-7" title="7">	<span class="ex">/System/Library/PrivateFrameworks/Calculate.framework/Versions/A/Calculate</span> (compatibility version 1.0.0, current version 1.0.0)</a>
+<a class="sourceLine" id="cb3-8" title="8">	<span class="ex">/System/Library/Frameworks/ApplicationServices.framework/Versions/A/ApplicationServices</span> (compatibility version 1.0.0, current version 50.1.0)</a>
+<a class="sourceLine" id="cb3-9" title="9">	<span class="ex">/System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore</span> (compatibility version 1.2.0, current version 1.11.0)</a>
+<a class="sourceLine" id="cb3-10" title="10">	<span class="ex">/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation</span> (compatibility version 300.0.0, current version 1570.13.0)</a>
+<a class="sourceLine" id="cb3-11" title="11">	<span class="ex">/usr/lib/libobjc.A.dylib</span> (compatibility version 1.0.0, current version 228.0.0)</a>
+<a class="sourceLine" id="cb3-12" title="12">	<span class="ex">/usr/lib/libSystem.B.dylib</span> (compatibility version 1.0.0, current version 1252.250.1)</a>
+<a class="sourceLine" id="cb3-13" title="13">	<span class="ex">/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation</span> (compatibility version 150.0.0, current version 1570.13.0)</a></code></pre></div>
+<p>At runtime, when linking, <code>dyld</code> will resolve and load dependencies <em>recursively</em>. Dependencies of dependencies will also be loaded into the address space of the app. When sandboxing the app, <a href="https://github.com/0xbf00/libsecinit/blob/24962765158a9e0330f2e8732a4738b5c888d2c9/src/libsecinit.c#L207"><em>all</em> loaded libraries</a> are considered when looking for sandbox snippets (though snippets from non-system libraries are by default silently ignored).</p>
+<figure>
+<img src="https://ubrigens.com/assets/images/sandbox/snippets.svg" alt="Overview: Sandbox Snippets on macOS" /><figcaption>Overview: Sandbox Snippets on macOS</figcaption>
+</figure>
+<p>This is how that snippet ended up in my output! The private <code>SpeechRecognitionCore.framework</code> is a second-order dependency of <code>AppKit</code>, the ubiquitous UI-framework on macOS.</p>
+<p>This bug was trivial to exploit: Link with <code>AppKit</code> — arguably the most important framework on macOS — and listen in on your users. No entitlement required. <a href="https://github.com/0xbf00/pocs/tree/master/CVE-2018-4184">Here’s</a> my PoC.</p>
+<h2 id="impact">Impact</h2>
+<p>As part of my Master’s Thesis, I was investigating how sandboxing was used in the Mac App Store (MAS) at the beginning of 2018. To answer this question, I collected all free apps from the German MAS, resulting in a dataset comprised of 7 603 real-world apps. By my own measurements, I had collected 25% of <em>all</em> apps available on the store at that time. This dataset came in handy when figuring out how many apps were (inadvertently) affected by CVE-2018-4184:</p>
+<ul>
+<li>356 apps had an entitlement granting them legitimate microphone access</li>
+<li>At least 6523 <em>additional</em> apps (roughly 90% of all analysed apps) could access the microphone due to this bug</li>
+<li>There were 1014 apps that a) imported a function related to audio recording though b) did not possess entitlements granting them legitimate microphone access but c) could still access the microphone due to the vulnerability identified. Most likely, these apps simply linked with a framework that happened to offer audio functionality, even though it was never used. But maybe not?</li>
+</ul>
+<p>In summary, at the start of 2018, the vast majority of applications – at least 94.2% of apps analysed – could access the microphone, even though only 4.87% of all applications had the required entitlement. This is not all that surprising, considering the importance of <code>AppKit</code>. Check out <a href="https://svs.informatik.uni-hamburg.de/publications/2019/2019-11-Blochberger-State-of-the-Sandbox.pdf">this paper</a> for more information about the dataset used here and some cool statistics about the App Sandbox’s adoption.</p>
+<h2 id="disclosure-timeline">Disclosure Timeline</h2>
+<p>This issue was resolved in 81 days.</p>
+<p>March 12, 2018 — Initial report sent to Apple </br> March 21, 2018 — Apple confirms vulnerability, plans to address it in an upcoming security update </br> June 1, 2018 — <a href="https://support.apple.com/en-us/HT208849">Patch released</a>. The patch modified <code>SpeechRecognitionCore</code>’s sandbox snippet to check for the microphone entitlement. In recent versions of macOS, the sandbox snippet is completely empty.</p>
+<p>Fun fact: The patch was only provided for macOS 10.13 and above. A fully patched 10.12 (which received security updates well into 2019) is still vulnerable.</p>
+</div>
+]]></summary>
+</entry>
+<entry>
     <title>It's Simbple: Peeking Inside App Sandbox Profiles</title>
     <link href="https://ubrigens.com/posts/simbple.html" />
     <id>https://ubrigens.com/posts/simbple.html</id>
