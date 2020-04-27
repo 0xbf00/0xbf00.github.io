@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:dc="http://purl.org/dc/elements/1.1/" version="1.1" xmlns:xl="http://www.w3.org/1999/xlink" xmlns="http://www.w3.org/2000/svg" viewBox="9.5 113.5 586.844 260" width="586.844" height="260">
+  <defs>
+    <font-face font-family="Helvetica Neue" font-size="16" panose-1="2 0 5 3 0 0 0 2 0 4" units-per-em="1000" underline-position="-100" underline-thickness="50" slope="0" x-height="517" cap-height="714" ascent="951.9958" descent="-212.99744" font-weight="400">
+      <font-face-src>
+        <font-face-name name="HelveticaNeue"/>
+      </font-face-src>
+    </font-face>
+    <font-face font-family="Helvetica Neue" font-size="26" panose-1="2 0 5 3 0 0 0 2 0 4" units-per-em="1000" underline-position="-100" underline-thickness="50" slope="0" x-height="517" cap-height="714" ascent="951.9958" descent="-212.99744" font-weight="400">
+      <font-face-src>
+        <font-face-name name="HelveticaNeue"/>
+      </font-face-src>
+    </font-face>
+    <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="NegativeControls_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -5 2 10" markerWidth="2" markerHeight="10" color="black">
+      <g>
+        <line x1="0" y1="-4" x2="0" y2="4" fill="none" stroke="currentColor" stroke-width="1"/>
+      </g>
+    </marker>
+    <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="NegativeControls_Marker_2" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -5 2 10" markerWidth="2" markerHeight="10" color="black">
+      <g>
+        <line x1="0" y1="4" x2="0" y2="-4" fill="none" stroke="currentColor" stroke-width="1"/>
+      </g>
+    </marker>
+  </defs>
+  <metadata> Produced by OmniGraffle 7.11.5 
+    <dc:date>2020-04-27 14:47:37 +0000</dc:date>
+  </metadata>
+  <g id="Canvas_1" stroke-dasharray="none" stroke-opacity="1" stroke="none" fill="none" fill-opacity="1">
+    <title>Canvas 1</title>
+    <rect fill="white" x="9.5" y="113.5" width="586.844" height="260"/>
+    <g id="Canvas_1: Layer 1">
+      <title>Layer 1</title>
+      <g id="Graphic_213">
+        <rect x="10" y="114" width="445.20896" height="163.10448" fill="white"/>
+        <rect x="10" y="114" width="445.20896" height="163.10448" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_224">
+        <rect x="10" y="277.10448" width="148.40299" height="61.91045" fill="white"/>
+        <rect x="10" y="277.10448" width="148.40299" height="61.91045" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_225">
+        <rect x="158.40299" y="277.10448" width="148.40299" height="95.89552" fill="white"/>
+        <rect x="158.40299" y="277.10448" width="148.40299" height="95.89552" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_226">
+        <rect x="306.80597" y="277.10448" width="148.40299" height="49.16418" fill="white"/>
+        <rect x="306.80597" y="277.10448" width="148.40299" height="49.16418" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_228">
+        <text transform="translate(62.85749 292.46257)" fill="black">
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="0" y="15">App 1</tspan>
+        </text>
+      </g>
+      <g id="Graphic_229">
+        <text transform="translate(358.33546 292.46257)" fill="black">
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="47961635e-20" y="15">App N</tspan>
+        </text>
+      </g>
+      <g id="Graphic_230">
+        <text transform="translate(211.26048 292.46257)" fill="black">
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="0" y="15">App 2</tspan>
+        </text>
+      </g>
+      <g id="Graphic_231">
+        <rect x="101.55319" y="164.59701" width="262.10258" height="61.91045" fill="#d6d5d5"/>
+        <rect x="101.55319" y="164.59701" width="262.10258" height="61.91045" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(106.55319 167.88024)" fill="black">
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="51.07529" y="15">Is every rule from the</tspan>
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="33.147292" y="33.448">abstract base profile used</tspan>
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="74.91529" y="51.895996">by some app?</tspan>
+        </text>
+      </g>
+      <g id="Graphic_2">
+        <circle cx="102" cy="162" r="23.0000367517436" fill="#666"/>
+        <circle cx="102" cy="162" r="23.0000367517436" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(88.6 146.136)" fill="white">
+          <tspan font-family="Helvetica Neue" font-size="26" font-weight="400" fill="white" x="6.1719996" y="25">?</tspan>
+        </text>
+      </g>
+      <g id="Line_233">
+        <line x1="470" y1="116.5" x2="470" y2="275.57407" marker-end="url(#NegativeControls_Marker)" marker-start="url(#NegativeControls_Marker_2)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_235">
+        <line x1="470" y1="279.60448" x2="470" y2="370.5" marker-end="url(#NegativeControls_Marker)" marker-start="url(#NegativeControls_Marker_2)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_236">
+        <text transform="translate(493.552 169.59701)" fill="black">
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="10.368" y="15">Rules from</tspan>
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="6465939e-19" y="33.448">abstract base</tspan>
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="26.824" y="51.895996">profile</tspan>
+        </text>
+      </g>
+      <g id="Graphic_237">
+        <text transform="translate(498 297.38024)" fill="black">
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="8.592" y="15">Additional</tspan>
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="32684966e-20" y="33.448">app-specific</tspan>
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="27.264" y="51.895996">rules</tspan>
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
