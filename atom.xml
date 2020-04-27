@@ -8,8 +8,126 @@
         <name>Jakob Rieck</name>
         <email>jakobrieck+blog@gmail.com</email>
     </author>
-    <updated>2020-03-18T00:00:00Z</updated>
+    <updated>2020-04-27T00:00:00Z</updated>
     <entry>
+    <title>Exploring Sandbox Coverage on macOS</title>
+    <link href="https://ubrigens.com/posts/sandbox_coverage.html" />
+    <id>https://ubrigens.com/posts/sandbox_coverage.html</id>
+    <published>2020-04-27T00:00:00Z</published>
+    <updated>2020-04-27T00:00:00Z</updated>
+    <summary type="html"><![CDATA[<div class="post">
+    <h2>
+        Exploring Sandbox Coverage on macOS
+        <span class="date">April 27, 2020</span>
+    </h2>
+    <blockquote>
+<p><strong>Note</strong>: This article describes my approach to <em>analyse the quality of sandbox profiles on macOS</em>. This is an important topic, as the sandbox is the core technology making sure apps and programs do only what they are supposed to do. There are a number of limitations and problems with my approach. This article is therefore not about the concrete results I got, but instead about how to approach this problem and what I’ve learned so far.</p>
+</blockquote>
+<p>The <em>principle of least privilege</em> <a href="https://dl.acm.org/doi/10.1145/361011.361067">states</a> that programs should operate with the least amount of privilege necessary to complete their task. Sandboxes are supposed to implement this principle, though it is often unclear how effectively they do their jobs. This article deals with this topic.</p>
+<p>App Sandboxing on macOS is configured using <em>entitlements</em>. There are only relatively few coarse-grained entitlements, but thousands of different apps. Each app has its own unique resource requirements. Because the abstract base profile underlying the App Sandbox encapsulates <em>all</em> permissible behaviour for all apps, it cannot perfectly fit each <em>individual</em> app. As such, it is to be expected that there are rules unused by some apps, but that are used by others. Accepting this limitation means that individual profiles are bound to be overprivileged: there is always wiggle room for apps to perform actions they were not intended to perform. This is the reality inherent in any sandboxing solution: there’s always a tradeoff between ease-of-use and flexibility.</p>
+<p>Another question remains: Are there completely unused rules in the abstract base profile? These rules are included in every application’s sandbox profile and therefore deserve special attention: They could be either <em>redundant</em> or <em>overly permissive</em> and can be removed in both cases, reducing complexity without breaking valid functionality.</p>
+<figure>
+<img src="https://ubrigens.com/assets/images/sandbox_coverage/coverage_motivation.svg" alt="Overview: The abstract base profile underlies all application sandboxing profiles" /><figcaption>Overview: The abstract base profile underlies all application sandboxing profiles</figcaption>
+</figure>
+<p>On macOS, the App Sandbox’s ruleset is a whitelist of allowed functionality. Unused, non-redundant sandbox rules could pose security risks if they allow resource accesses that are not needed at runtime.</p>
+<p>Note: sandbox profiles with no unused rules are not automatically <em>appropriate</em>. For instance, the profile consisting of just the single rule <code>(allow default)</code> is not a sensible sandbox configuration, even though it contains no unused rules.</p>
+<h2 id="approach">Approach</h2>
+<p>Knowing which rules are <em>not used</em> requires knowing which ones <em>are used</em>. We are interested in something akin to code coverage, albeit for sandbox profiles. Let’s be pragmatic and call it <em>sandbox coverage</em>.</p>
+<p>Here’s what I did to approach the problem:</p>
+<ol type="1">
+<li><strong>Turn on sandbox logging for all rules</strong></br> <code>Sandbox.kext</code> logs its decisions to the syslog. I tried to match these logs back to the rules that generated them. Logging is not enabled for all rules by default.</li>
+<li><strong>Collect sandbox traces (log entries)</strong></br> Sandbox logs are only generated at runtime. To collect them, we need to <em>run</em> and thoroughly <em>test</em> apps to reach as much programmed functionality as possible.</li>
+<li><strong>Match sandbox traces to sandbox rules</strong></br> I built a matcher to figure out <em>which sandbox rule</em> was responsible for <em>which log entry</em>.</li>
+<li><strong>Generalise matches to abstract base profile</strong></br> Results from the previous step are tied to a concrete sandboxing profile. We are mainly interested in which rules from the underlying abstract <code>application.sb</code> profile are not used. In this step, we generalise our results using simple heuristics.</li>
+</ol>
+<h3 id="sandbox-logs">Sandbox Logs</h3>
+<p>Apple’s sandbox logs its decisions to the system log. Each log entry consists of the decision taken (<code>allow</code> or <code>deny</code>), the affected sandbox operation name and a string describing the resource accessed. Open up <code>Console.app</code>, wait a few seconds and you will see examples such as</p>
+<pre><code>Sandbox: systemsoundserve(252) deny(1) file-read-data /Library/Preferences/Logging/com.apple.diagnosticd.filter.plist</code></pre>
+<p>By default only <code>deny</code> decisions are logged. <code>allow</code> decisions are however much more interesting because the App Sandbox uses a whitelisting approach. To <strong>enable comprehensive sandbox logging</strong>, we can use <a href="https://github.com/0xbf00/simbple"><code>simbple</code></a> to add the <code>report</code> modifier to all <code>allow</code> rules. Modified profiles will look as follows</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb2-1" title="1"><span class="co"># The --patch flag adds report modifiers to all allow rules</span></a>
+<a class="sourceLine" id="cb2-2" title="2">$ <span class="ex">./simbple</span> ~/Library/Containers/com.apple.calculator/Container.plist --patch <span class="kw">|</span> <span class="fu">tail</span> -n 9</a>
+<a class="sourceLine" id="cb2-3" title="3"><span class="kw">(</span><span class="ex">allow</span></a>
+<a class="sourceLine" id="cb2-4" title="4">    <span class="ex">mach-lookup</span></a>
+<a class="sourceLine" id="cb2-5" title="5">    <span class="kw">(</span><span class="ex">global-name</span> <span class="st">&quot;com.apple.mobile.keybagd.xpc&quot;</span><span class="kw">)</span></a>
+<a class="sourceLine" id="cb2-6" title="6">    <span class="kw">(</span><span class="ex">with</span> report<span class="kw">))</span> <span class="co"># Modifier added by simbple</span></a>
+<a class="sourceLine" id="cb2-7" title="7"><span class="kw">(</span><span class="ex">allow</span></a>
+<a class="sourceLine" id="cb2-8" title="8">    <span class="ex">mach-lookup</span></a>
+<a class="sourceLine" id="cb2-9" title="9">    <span class="kw">(</span><span class="ex">global-name</span> <span class="st">&quot;com.apple.backgroundtaskmanagementagent&quot;</span><span class="kw">)</span></a>
+<a class="sourceLine" id="cb2-10" title="10">    <span class="kw">(</span><span class="ex">with</span> report<span class="kw">))</span> <span class="co"># Added by simbple</span></a></code></pre></div>
+<p>To <strong>collect sandbox traces / log entries</strong>, all that is left to do is running the target program with the modified sandbox profile. To do this, simply compile the new sandbox profile and inject it into the app’s <code>Container.plist</code> file. How <em>complete</em> your results are depends on your testing methodology. Ideally, you’d want to exhaustively test apps and trigger all functionality. This might be feasible when you are dealing with only few simple apps, but does not scale at all. Products such as <a href="https://www.froglogic.com/squish/">Squish</a> can script GUIs on macOS, but they are geared towards developers with source code access and break down quickly when used on third-party code. I ended up simply opening apps and letting them run idly for sixty seconds. In addition, I tested a small set of apps more thoroughly to see how results would look like with a more comprehensive testing strategy.</p>
+<p>Sandbox logs after parsing and cleanup look like this:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode json"><code class="sourceCode json"><a class="sourceLine" id="cb3-1" title="1"><span class="fu">{</span></a>
+<a class="sourceLine" id="cb3-2" title="2">    <span class="dt">&quot;action&quot;</span><span class="fu">:</span> <span class="st">&quot;allow&quot;</span><span class="fu">,</span></a>
+<a class="sourceLine" id="cb3-3" title="3">    <span class="dt">&quot;argument&quot;</span><span class="fu">:</span> <span class="st">&quot;/System/Library/Frameworks/GSS.framework/Versions/A/GSS&quot;</span><span class="fu">,</span></a>
+<a class="sourceLine" id="cb3-4" title="4">    <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;file-read-metadata&quot;</span></a>
+<a class="sourceLine" id="cb3-5" title="5"><span class="fu">}</span><span class="er">,</span></a>
+<a class="sourceLine" id="cb3-6" title="6"><span class="fu">{</span></a>
+<a class="sourceLine" id="cb3-7" title="7">    <span class="dt">&quot;action&quot;</span><span class="fu">:</span> <span class="st">&quot;allow&quot;</span><span class="fu">,</span></a>
+<a class="sourceLine" id="cb3-8" title="8">    <span class="dt">&quot;argument&quot;</span><span class="fu">:</span> <span class="st">&quot;/Applications/Calculator.app&quot;</span><span class="fu">,</span></a>
+<a class="sourceLine" id="cb3-9" title="9">    <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;file-read-data&quot;</span></a>
+<a class="sourceLine" id="cb3-10" title="10"><span class="fu">}</span><span class="er">,</span></a></code></pre></div>
+<h3 id="rule-matching">Rule Matching</h3>
+<p>The general order of evaluation for sandbox profiles is from beginning to end. Later rules <em>can</em> modify earlier ones, but don’t always (there are rules here but they don’t matter for this discussion). Earlier rules <strong>never</strong> modify later ones. When you remove the last rule in a sandbox profile, a sandbox exception might be removed (last rule was a <code>deny</code> rule) or added (last rule was an <code>allow</code> rule).</p>
+<figure>
+<img src="https://ubrigens.com/assets/images/sandbox_coverage/rule_matching.svg" alt="Overview: Matching Architecture" /><figcaption>Overview: Matching Architecture</figcaption>
+</figure>
+<p>Using this knowledge, we can build a <em>sandbox oracle</em> to figure out <em>which rule was responsible for a given sandbox decision</em>: given a decision from the sandbox logs and the corresponding sandbox profile, we repeatedly remove the last rule from the profile and check if the sandbox would decide differently. Once it does, we know that the last removed rule is responsible for the original decision.</p>
+<p>Let’s consider the following example. According to the log entry, the sandbox allowed the program to read <code>a.dylib</code>. Looking at the example ruleset, it should be clear that the <code>device-microphone</code> rule has nothing to do with our log entry, hence nothing changes when removing this rule. Once we remove the next rule however, only the <code>(deny default)</code> rule will remain. Given this profile, the sandbox will <em>deny</em> the request. At this point, we know that the second rule is responsible for the log entry.</p>
+<figure>
+<img src="https://ubrigens.com/assets/images/sandbox_coverage/matcher_example.svg" alt="Example for matching" /><figcaption>Example for matching</figcaption>
+</figure>
+<p>The basis of the sandbox oracle is <code>sandbox_check</code>, a pretty much undocumented function. Trying to work around some of its limitations, I wrote functionality that would actually trigger sandbox checks to see what is allowed and what’s not. Check out <a href="https://github.com/0xbf00/macos-sandbox-coverage">the code</a> for more infos.</p>
+<h3 id="generalising-results">Generalising results</h3>
+<p>Starting out, we were interested in which rules of the <em>abstract</em> base profile (<code>application.sb</code>) are unused. Up until now however, our results are tied to the <em>specific</em> application sandboxing profile.</p>
+<p>We can generalise our results by mapping them onto (a generic instantiation of) the <code>application.sb</code> profile:</p>
+<figure>
+<img src="https://ubrigens.com/assets/images/sandbox_coverage/profile_matching.svg" alt="Overview: Generalising Sandbox Profiles" /><figcaption>Overview: Generalising Sandbox Profiles</figcaption>
+</figure>
+<p>To do this, we first craft a generic container metadata file where all sandbox parameters are set to generic placeholder values, all non-essential sandbox snippets are removed and only the <code>com.apple.security.app-sandbox</code> entitlement is specified (<strong>1</strong>). We then use <a href="https://github.com/0xbf00/simbple"><code>simbple</code></a> to generate the corresponding generic sandbox profile (<strong>2</strong>).</p>
+<p>The application’s sandbox profile (<strong>3</strong>) is used during matching. To generalise the results, we compute a normalised application sandboxing profile (<strong>5</strong>) by “normalising” the app’s <code>Container.plist</code> file (<strong>4</strong>). In contrast to (<strong>1</strong>), we leave entitlements and sandbox snippets as they are.</p>
+<p>We then create a mapping between the application’s sandbox profile and its normalised version (<strong>6</strong>). This can be done rather easily, because the order of rules is identical in both. Finally, we create a second mapping between the normalised version and the generic sandbox profile (<strong>7</strong>), which is possible because both use the same generic placeholder values. This mapping is not 1:1, because sandbox snippets are missing from the generic profile.</p>
+<p>With these mappings, we can now transfer our matching result from the application sandbox profile to the generic sandbox profile.</p>
+<h2 id="results">Results</h2>
+<p>I ran the sandbox coverage analysis on 6 703 free apps from the Mac App Store. Each app was opened, left running for 60 seconds and was then closed again. In total, I collected just shy of 17 million sandbox log statements. Of these, a little over 4% of logs yielded inconsistent results (sandbox decision during matching differs from original) and could not be matched. There are a number of reasons for why this was happening. See the next section for a discussion of the problems of this approach.</p>
+<p>In my automated tests, sandbox coverage for individual apps never exceeded 14.5%. Apps I <em>manually interacted with</em> had slightly higher coverage at roughly 16%. Nevertheless, in my work, I could only find proof that roughly one out of five sandbox rules was actually used at runtime. Even if we assume that errors in the project mean only 50% of rules were captured or could be matched, that still means that the majority of sandbox rules are not needed and the resulting sandboxing profiles are needlessly complicated.</p>
+<p>Though the strategy to get logs for individual apps was very basic, generalising and combining all results yielded higher sandbox coverage statistics for the abstract base profile. Here, 28% of all rules are used. Again, the majority of rules appear <em>not to be used by any app</em>. To visualise the results, you could for instance colour every rule that was used in green:</p>
+<figure>
+<img src="https://ubrigens.com/assets/images/sandbox_coverage/coverage_visualisation.png" alt="Example Visualisation of Sandbox Coverage" /><figcaption>Example Visualisation of Sandbox Coverage</figcaption>
+</figure>
+<p>Knowing what parts of a sandboxing profile are actually used is very helpful. For instance, it allows you to harden your own machine!</p>
+<h2 id="problems-and-limitations">Problems and Limitations</h2>
+<p>If you’ve read this far, you might have already thought of some issues with my approach. Let me know <a href="https://twitter.com/0xdead10cc">on Twitter</a> if you have anything to add to this list:</p>
+<ul>
+<li><strong>TOCTTOU (Time of check to time of use)</strong>: As rule matching is performed <em>post facto</em>, the system state underlying a particular decision could have already changed when we get around to matching. We can detect <em>inconsistent</em> matches, where the decision the matcher returns differs from the original decision. It is however also possible that a <em>different rule</em> produces the same decision during matching, making it impossible to guarantee correctness of matches.</li>
+<li><strong>Incompleteness of dynamic analysis</strong>: Dynamic analysis is incomplete by definition; there are always code paths your testing will not hit. Furthermore, existing tools to automatically test apps are geared towards developers with source code access and cannot be used on random third-party apps.</li>
+<li><strong>Incomplete sandbox logs</strong>: Some sandbox operations don’t produce logging output (e.g. <code>device-microphone</code>), even when explicitly instructed to. For other operations, only some of the parameters influencing the sandbox decision are logged (e.g. only the filename, not any flags).</li>
+<li><strong>Impractical APIs to query sandboxing</strong>: <code>sandbox_check</code> was not designed for what I am using it for here. Some of its limitations I could work around, some I could not.</li>
+<li><strong>Incomplete dataset</strong>: There is no single repository of every Mac app in existence. In my work, I looked at free apps only. Paid apps might behave differently, although I would bet against it.</li>
+</ul>
+<p>These limitations are pretty fundamental. They are unfortunately inherent in any approach that tries to perform matching <em>post facto</em> in <em>user space</em>.</p>
+<h2 id="next-steps-move-matching-to-the-kernel">Next steps: Move matching to the kernel</h2>
+<p>I think it is possible to solve most limitations by performing the matching in the kernel at the time the sandbox makes its decision. As you know, sandboxing is implemented in a kernel extension (<code>Sandbox.kext</code>). This kernel extension implements a policy module that is called upon by the mandatory access control framework embedded in XNU. The center piece of this framework is the <code>MAC_CHECK</code> macro, defined in <a href="https://opensource.apple.com/source/xnu/xnu-6153.11.26/security/mac_internal.h.auto.html">security/mac_internal.h</a>:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c"><code class="sourceCode c"><a class="sourceLine" id="cb4-1" title="1"><span class="co">/*</span></a>
+<a class="sourceLine" id="cb4-2" title="2"><span class="co"> * MAC_CHECK performs the designated check by walking the policy</span></a>
+<a class="sourceLine" id="cb4-3" title="3"><span class="co"> * module list and checking with each as to how it feels about the</span></a>
+<a class="sourceLine" id="cb4-4" title="4"><span class="co"> * request.  Note that it returns its value via 'error' in the scope</span></a>
+<a class="sourceLine" id="cb4-5" title="5"><span class="co"> * of the caller.</span></a>
+<a class="sourceLine" id="cb4-6" title="6"><span class="co"> */</span></a>
+<a class="sourceLine" id="cb4-7" title="7"><span class="pp">#define MAC_CHECK(check, args...) do {                                  \</span></a>
+<a class="sourceLine" id="cb4-8" title="8"><span class="pp">	struct mac_policy_conf *mpc;                                    \</span></a>
+<a class="sourceLine" id="cb4-9" title="9"><span class="pp">	u_int i;                                                        \</span></a>
+<a class="sourceLine" id="cb4-10" title="10"><span class="pp">// ...</span></a></code></pre></div>
+<p>It should be possible to replicate the matching logic inside of this macro. Here we would repeatedly query <code>Sandbox.kext</code> for its decision while changing out a processes’ sandbox profile underneath the kernel extension.</p>
+<p>For this to work, we would need</p>
+<ol type="1">
+<li>A primitive to change out the installed sandbox profile for a process. Since we are working in kernel space, it should be possible to simply mess with <code>Sandbox.kext</code>’s memory directly.</li>
+<li>A syscall for a user space process to send a list of <code>n</code> compiled sandbox profiles to the kernel, where <code>n</code> is the number of rules in the complete profile. The kernel would install the complete profile to start and use the rest in the modified <code>MAC_CHECK</code> macro, similarly to how matching works in user space.</li>
+<li>A method for the kernel to transmit results back to user space</li>
+</ol>
+</div>
+]]></summary>
+</entry>
+<entry>
     <title>The Long And Winding Road To Safety: Three Ways to Bypass Sandbox Initialisation on macOS</title>
     <link href="https://ubrigens.com/posts/sandbox_initialisation_bypasses.html" />
     <id>https://ubrigens.com/posts/sandbox_initialisation_bypasses.html</id>
