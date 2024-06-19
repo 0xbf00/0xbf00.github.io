@@ -6,7 +6,9 @@
     <id>https://ubrigens.com/atom.xml</id>
     <author>
         <name>Jakob Rieck</name>
+        
         <email>jakobrieck+blog@gmail.com</email>
+        
     </author>
     <updated>2020-04-27T00:00:00Z</updated>
     <entry>
@@ -27,7 +29,8 @@
 <p>App Sandboxing on macOS is configured using <em>entitlements</em>. There are only relatively few coarse-grained entitlements, but thousands of different apps. Each app has its own unique resource requirements. Because the abstract base profile underlying the App Sandbox encapsulates <em>all</em> permissible behaviour for all apps, it cannot perfectly fit each <em>individual</em> app. As such, it is to be expected that there are rules unused by some apps, but that are used by others. Accepting this limitation means that individual profiles are bound to be overprivileged: there is always wiggle room for apps to perform actions they were not intended to perform. This is the reality inherent in any sandboxing solution: there’s always a tradeoff between ease-of-use and flexibility.</p>
 <p>Another question remains: Are there completely unused rules in the abstract base profile? These rules are included in every application’s sandbox profile and therefore deserve special attention: They could be either <em>redundant</em> or <em>overly permissive</em> and can be removed in both cases, reducing complexity without breaking valid functionality.</p>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox_coverage/coverage_motivation.svg" alt="Overview: The abstract base profile underlies all application sandboxing profiles" /><figcaption>Overview: The abstract base profile underlies all application sandboxing profiles</figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox_coverage/coverage_motivation.svg" alt="Overview: The abstract base profile underlies all application sandboxing profiles" />
+<figcaption aria-hidden="true">Overview: The abstract base profile underlies all application sandboxing profiles</figcaption>
 </figure>
 <p>On macOS, the App Sandbox’s ruleset is a whitelist of allowed functionality. Unused, non-redundant sandbox rules could pose security risks if they allow resource accesses that are not needed at runtime.</p>
 <p>Note: sandbox profiles with no unused rules are not automatically <em>appropriate</em>. For instance, the profile consisting of just the single rule <code>(allow default)</code> is not a sensible sandbox configuration, even though it contains no unused rules.</p>
@@ -35,53 +38,60 @@
 <p>Knowing which rules are <em>not used</em> requires knowing which ones <em>are used</em>. We are interested in something akin to code coverage, albeit for sandbox profiles. Let’s be pragmatic and call it <em>sandbox coverage</em>.</p>
 <p>Here’s what I did to approach the problem:</p>
 <ol type="1">
-<li><strong>Turn on sandbox logging for all rules</strong></br> <code>Sandbox.kext</code> logs its decisions to the syslog. I tried to match these logs back to the rules that generated them. Logging is not enabled for all rules by default.</li>
-<li><strong>Collect sandbox traces (log entries)</strong></br> Sandbox logs are only generated at runtime. To collect them, we need to <em>run</em> and thoroughly <em>test</em> apps to reach as much programmed functionality as possible.</li>
-<li><strong>Match sandbox traces to sandbox rules</strong></br> I built a matcher to figure out <em>which sandbox rule</em> was responsible for <em>which log entry</em>.</li>
-<li><strong>Generalise matches to abstract base profile</strong></br> Results from the previous step are tied to a concrete sandboxing profile. We are mainly interested in which rules from the underlying abstract <code>application.sb</code> profile are not used. In this step, we generalise our results using simple heuristics.</li>
+<li><strong>Turn on sandbox logging for all rules</strong></br>
+<code>Sandbox.kext</code> logs its decisions to the syslog. I tried to match these logs back to the rules that generated them. Logging is not enabled for all rules by default.</li>
+<li><strong>Collect sandbox traces (log entries)</strong></br>
+Sandbox logs are only generated at runtime. To collect them, we need to <em>run</em> and thoroughly <em>test</em> apps to reach as much programmed functionality as possible.</li>
+<li><strong>Match sandbox traces to sandbox rules</strong></br>
+I built a matcher to figure out <em>which sandbox rule</em> was responsible for <em>which log entry</em>.</li>
+<li><strong>Generalise matches to abstract base profile</strong></br>
+Results from the previous step are tied to a concrete sandboxing profile. We are mainly interested in which rules from the underlying abstract <code>application.sb</code> profile are not used. In this step, we generalise our results using simple heuristics.</li>
 </ol>
 <h3 id="sandbox-logs">Sandbox Logs</h3>
 <p>Apple’s sandbox logs its decisions to the system log. Each log entry consists of the decision taken (<code>allow</code> or <code>deny</code>), the affected sandbox operation name and a string describing the resource accessed. Open up <code>Console.app</code>, wait a few seconds and you will see examples such as</p>
 <pre><code>Sandbox: systemsoundserve(252) deny(1) file-read-data /Library/Preferences/Logging/com.apple.diagnosticd.filter.plist</code></pre>
 <p>By default only <code>deny</code> decisions are logged. <code>allow</code> decisions are however much more interesting because the App Sandbox uses a whitelisting approach. To <strong>enable comprehensive sandbox logging</strong>, we can use <a href="https://github.com/0xbf00/simbple"><code>simbple</code></a> to add the <code>report</code> modifier to all <code>allow</code> rules. Modified profiles will look as follows</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb2-1" title="1"><span class="co"># The --patch flag adds report modifiers to all allow rules</span></a>
-<a class="sourceLine" id="cb2-2" title="2">$ <span class="ex">./simbple</span> ~/Library/Containers/com.apple.calculator/Container.plist --patch <span class="kw">|</span> <span class="fu">tail</span> -n 9</a>
-<a class="sourceLine" id="cb2-3" title="3"><span class="kw">(</span><span class="ex">allow</span></a>
-<a class="sourceLine" id="cb2-4" title="4">    <span class="ex">mach-lookup</span></a>
-<a class="sourceLine" id="cb2-5" title="5">    <span class="kw">(</span><span class="ex">global-name</span> <span class="st">&quot;com.apple.mobile.keybagd.xpc&quot;</span><span class="kw">)</span></a>
-<a class="sourceLine" id="cb2-6" title="6">    <span class="kw">(</span><span class="ex">with</span> report<span class="kw">))</span> <span class="co"># Modifier added by simbple</span></a>
-<a class="sourceLine" id="cb2-7" title="7"><span class="kw">(</span><span class="ex">allow</span></a>
-<a class="sourceLine" id="cb2-8" title="8">    <span class="ex">mach-lookup</span></a>
-<a class="sourceLine" id="cb2-9" title="9">    <span class="kw">(</span><span class="ex">global-name</span> <span class="st">&quot;com.apple.backgroundtaskmanagementagent&quot;</span><span class="kw">)</span></a>
-<a class="sourceLine" id="cb2-10" title="10">    <span class="kw">(</span><span class="ex">with</span> report<span class="kw">))</span> <span class="co"># Added by simbple</span></a></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb2-1"><a href="https://ubrigens.com#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># The --patch flag adds report modifiers to all allow rules</span></span>
+<span id="cb2-2"><a href="https://ubrigens.com#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> ./simbple ~/Library/Containers/com.apple.calculator/Container.plist <span class="at">--patch</span> <span class="kw">|</span> <span class="fu">tail</span> <span class="at">-n</span> 9</span>
+<span id="cb2-3"><a href="https://ubrigens.com#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="ex">allow</span></span>
+<span id="cb2-4"><a href="https://ubrigens.com#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="ex">mach-lookup</span></span>
+<span id="cb2-5"><a href="https://ubrigens.com#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">(</span><span class="ex">global-name</span> <span class="st">&quot;com.apple.mobile.keybagd.xpc&quot;</span><span class="kw">)</span></span>
+<span id="cb2-6"><a href="https://ubrigens.com#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">(</span><span class="ex">with</span> report<span class="kw">))</span> <span class="co"># Modifier added by simbple</span></span>
+<span id="cb2-7"><a href="https://ubrigens.com#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="ex">allow</span></span>
+<span id="cb2-8"><a href="https://ubrigens.com#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="ex">mach-lookup</span></span>
+<span id="cb2-9"><a href="https://ubrigens.com#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">(</span><span class="ex">global-name</span> <span class="st">&quot;com.apple.backgroundtaskmanagementagent&quot;</span><span class="kw">)</span></span>
+<span id="cb2-10"><a href="https://ubrigens.com#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">(</span><span class="ex">with</span> report<span class="kw">))</span> <span class="co"># Added by simbple</span></span></code></pre></div>
 <p>To <strong>collect sandbox traces / log entries</strong>, all that is left to do is running the target program with the modified sandbox profile. To do this, simply compile the new sandbox profile and inject it into the app’s <code>Container.plist</code> file. How <em>complete</em> your results are depends on your testing methodology. Ideally, you’d want to exhaustively test apps and trigger all functionality. This might be feasible when you are dealing with only few simple apps, but does not scale at all. Products such as <a href="https://www.froglogic.com/squish/">Squish</a> can script GUIs on macOS, but they are geared towards developers with source code access and break down quickly when used on third-party code. I ended up simply opening apps and letting them run idly for sixty seconds. In addition, I tested a small set of apps more thoroughly to see how results would look like with a more comprehensive testing strategy.</p>
 <p>Sandbox logs after parsing and cleanup look like this:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode json"><code class="sourceCode json"><a class="sourceLine" id="cb3-1" title="1"><span class="fu">{</span></a>
-<a class="sourceLine" id="cb3-2" title="2">    <span class="dt">&quot;action&quot;</span><span class="fu">:</span> <span class="st">&quot;allow&quot;</span><span class="fu">,</span></a>
-<a class="sourceLine" id="cb3-3" title="3">    <span class="dt">&quot;argument&quot;</span><span class="fu">:</span> <span class="st">&quot;/System/Library/Frameworks/GSS.framework/Versions/A/GSS&quot;</span><span class="fu">,</span></a>
-<a class="sourceLine" id="cb3-4" title="4">    <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;file-read-metadata&quot;</span></a>
-<a class="sourceLine" id="cb3-5" title="5"><span class="fu">}</span><span class="er">,</span></a>
-<a class="sourceLine" id="cb3-6" title="6"><span class="fu">{</span></a>
-<a class="sourceLine" id="cb3-7" title="7">    <span class="dt">&quot;action&quot;</span><span class="fu">:</span> <span class="st">&quot;allow&quot;</span><span class="fu">,</span></a>
-<a class="sourceLine" id="cb3-8" title="8">    <span class="dt">&quot;argument&quot;</span><span class="fu">:</span> <span class="st">&quot;/Applications/Calculator.app&quot;</span><span class="fu">,</span></a>
-<a class="sourceLine" id="cb3-9" title="9">    <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;file-read-data&quot;</span></a>
-<a class="sourceLine" id="cb3-10" title="10"><span class="fu">}</span><span class="er">,</span></a></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb3-1"><a href="https://ubrigens.com#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb3-2"><a href="https://ubrigens.com#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;action&quot;</span><span class="fu">:</span> <span class="st">&quot;allow&quot;</span><span class="fu">,</span></span>
+<span id="cb3-3"><a href="https://ubrigens.com#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;argument&quot;</span><span class="fu">:</span> <span class="st">&quot;/System/Library/Frameworks/GSS.framework/Versions/A/GSS&quot;</span><span class="fu">,</span></span>
+<span id="cb3-4"><a href="https://ubrigens.com#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;file-read-metadata&quot;</span></span>
+<span id="cb3-5"><a href="https://ubrigens.com#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span><span class="er">,</span></span>
+<span id="cb3-6"><a href="https://ubrigens.com#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb3-7"><a href="https://ubrigens.com#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;action&quot;</span><span class="fu">:</span> <span class="st">&quot;allow&quot;</span><span class="fu">,</span></span>
+<span id="cb3-8"><a href="https://ubrigens.com#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;argument&quot;</span><span class="fu">:</span> <span class="st">&quot;/Applications/Calculator.app&quot;</span><span class="fu">,</span></span>
+<span id="cb3-9"><a href="https://ubrigens.com#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;file-read-data&quot;</span></span>
+<span id="cb3-10"><a href="https://ubrigens.com#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span><span class="er">,</span></span></code></pre></div>
 <h3 id="rule-matching">Rule Matching</h3>
 <p>The general order of evaluation for sandbox profiles is from beginning to end. Later rules <em>can</em> modify earlier ones, but don’t always (there are rules here but they don’t matter for this discussion). Earlier rules <strong>never</strong> modify later ones. When you remove the last rule in a sandbox profile, a sandbox exception might be removed (last rule was a <code>deny</code> rule) or added (last rule was an <code>allow</code> rule).</p>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox_coverage/rule_matching.svg" alt="Overview: Matching Architecture" /><figcaption>Overview: Matching Architecture</figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox_coverage/rule_matching.svg" alt="Overview: Matching Architecture" />
+<figcaption aria-hidden="true">Overview: Matching Architecture</figcaption>
 </figure>
 <p>Using this knowledge, we can build a <em>sandbox oracle</em> to figure out <em>which rule was responsible for a given sandbox decision</em>: given a decision from the sandbox logs and the corresponding sandbox profile, we repeatedly remove the last rule from the profile and check if the sandbox would decide differently. Once it does, we know that the last removed rule is responsible for the original decision.</p>
 <p>Let’s consider the following example. According to the log entry, the sandbox allowed the program to read <code>a.dylib</code>. Looking at the example ruleset, it should be clear that the <code>device-microphone</code> rule has nothing to do with our log entry, hence nothing changes when removing this rule. Once we remove the next rule however, only the <code>(deny default)</code> rule will remain. Given this profile, the sandbox will <em>deny</em> the request. At this point, we know that the second rule is responsible for the log entry.</p>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox_coverage/matcher_example.svg" alt="Example for matching" /><figcaption>Example for matching</figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox_coverage/matcher_example.svg" alt="Example for matching" />
+<figcaption aria-hidden="true">Example for matching</figcaption>
 </figure>
 <p>The basis of the sandbox oracle is <code>sandbox_check</code>, a pretty much undocumented function. Trying to work around some of its limitations, I wrote functionality that would actually trigger sandbox checks to see what is allowed and what’s not. Check out <a href="https://github.com/0xbf00/macos-sandbox-coverage">the code</a> for more infos.</p>
 <h3 id="generalising-results">Generalising results</h3>
 <p>Starting out, we were interested in which rules of the <em>abstract</em> base profile (<code>application.sb</code>) are unused. Up until now however, our results are tied to the <em>specific</em> application sandboxing profile.</p>
 <p>We can generalise our results by mapping them onto (a generic instantiation of) the <code>application.sb</code> profile:</p>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox_coverage/profile_matching.svg" alt="Overview: Generalising Sandbox Profiles" /><figcaption>Overview: Generalising Sandbox Profiles</figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox_coverage/profile_matching.svg" alt="Overview: Generalising Sandbox Profiles" />
+<figcaption aria-hidden="true">Overview: Generalising Sandbox Profiles</figcaption>
 </figure>
 <p>To do this, we first craft a generic container metadata file where all sandbox parameters are set to generic placeholder values, all non-essential sandbox snippets are removed and only the <code>com.apple.security.app-sandbox</code> entitlement is specified (<strong>1</strong>). We then use <a href="https://github.com/0xbf00/simbple"><code>simbple</code></a> to generate the corresponding generic sandbox profile (<strong>2</strong>).</p>
 <p>The application’s sandbox profile (<strong>3</strong>) is used during matching. To generalise the results, we compute a normalised application sandboxing profile (<strong>5</strong>) by “normalising” the app’s <code>Container.plist</code> file (<strong>4</strong>). In contrast to (<strong>1</strong>), we leave entitlements and sandbox snippets as they are.</p>
@@ -92,7 +102,8 @@
 <p>In my automated tests, sandbox coverage for individual apps never exceeded 14.5%. Apps I <em>manually interacted with</em> had slightly higher coverage at roughly 16%. Nevertheless, in my work, I could only find proof that roughly one out of five sandbox rules was actually used at runtime. Even if we assume that errors in the project mean only 50% of rules were captured or could be matched, that still means that the majority of sandbox rules are not needed and the resulting sandboxing profiles are needlessly complicated.</p>
 <p>Though the strategy to get logs for individual apps was very basic, generalising and combining all results yielded higher sandbox coverage statistics for the abstract base profile. Here, 28% of all rules are used. Again, the majority of rules appear <em>not to be used by any app</em>. To visualise the results, you could for instance colour every rule that was used in green:</p>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox_coverage/coverage_visualisation.png" alt="Example Visualisation of Sandbox Coverage" /><figcaption>Example Visualisation of Sandbox Coverage</figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox_coverage/coverage_visualisation.png" alt="Example Visualisation of Sandbox Coverage" />
+<figcaption aria-hidden="true">Example Visualisation of Sandbox Coverage</figcaption>
 </figure>
 <p>Knowing what parts of a sandboxing profile are actually used is very helpful. For instance, it allows you to harden your own machine!</p>
 <h2 id="problems-and-limitations">Problems and Limitations</h2>
@@ -100,23 +111,23 @@
 <ul>
 <li><strong>TOCTTOU (Time of check to time of use)</strong>: As rule matching is performed <em>post facto</em>, the system state underlying a particular decision could have already changed when we get around to matching. We can detect <em>inconsistent</em> matches, where the decision the matcher returns differs from the original decision. It is however also possible that a <em>different rule</em> produces the same decision during matching, making it impossible to guarantee correctness of matches.</li>
 <li><strong>Incompleteness of dynamic analysis</strong>: Dynamic analysis is incomplete by definition; there are always code paths your testing will not hit. Furthermore, existing tools to automatically test apps are geared towards developers with source code access and cannot be used on random third-party apps.</li>
-<li><strong>Incomplete sandbox logs</strong>: Some sandbox operations don’t produce logging output (e.g. <code>device-microphone</code>), even when explicitly instructed to. For other operations, only some of the parameters influencing the sandbox decision are logged (e.g. only the filename, not any flags).</li>
+<li><strong>Incomplete sandbox logs</strong>: Some sandbox operations don’t produce logging output (e.g. <code>device-microphone</code>), even when explicitly instructed to. For other operations, only some of the parameters influencing the sandbox decision are logged (e.g. only the filename, not any flags).</li>
 <li><strong>Impractical APIs to query sandboxing</strong>: <code>sandbox_check</code> was not designed for what I am using it for here. Some of its limitations I could work around, some I could not.</li>
 <li><strong>Incomplete dataset</strong>: There is no single repository of every Mac app in existence. In my work, I looked at free apps only. Paid apps might behave differently, although I would bet against it.</li>
 </ul>
 <p>These limitations are pretty fundamental. They are unfortunately inherent in any approach that tries to perform matching <em>post facto</em> in <em>user space</em>.</p>
 <h2 id="next-steps-move-matching-to-the-kernel">Next steps: Move matching to the kernel</h2>
 <p>I think it is possible to solve most limitations by performing the matching in the kernel at the time the sandbox makes its decision. As you know, sandboxing is implemented in a kernel extension (<code>Sandbox.kext</code>). This kernel extension implements a policy module that is called upon by the mandatory access control framework embedded in XNU. The center piece of this framework is the <code>MAC_CHECK</code> macro, defined in <a href="https://opensource.apple.com/source/xnu/xnu-6153.11.26/security/mac_internal.h.auto.html">security/mac_internal.h</a>:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode c"><code class="sourceCode c"><a class="sourceLine" id="cb4-1" title="1"><span class="co">/*</span></a>
-<a class="sourceLine" id="cb4-2" title="2"><span class="co"> * MAC_CHECK performs the designated check by walking the policy</span></a>
-<a class="sourceLine" id="cb4-3" title="3"><span class="co"> * module list and checking with each as to how it feels about the</span></a>
-<a class="sourceLine" id="cb4-4" title="4"><span class="co"> * request.  Note that it returns its value via 'error' in the scope</span></a>
-<a class="sourceLine" id="cb4-5" title="5"><span class="co"> * of the caller.</span></a>
-<a class="sourceLine" id="cb4-6" title="6"><span class="co"> */</span></a>
-<a class="sourceLine" id="cb4-7" title="7"><span class="pp">#define MAC_CHECK(check, args...) do {                                  \</span></a>
-<a class="sourceLine" id="cb4-8" title="8"><span class="pp">	struct mac_policy_conf *mpc;                                    \</span></a>
-<a class="sourceLine" id="cb4-9" title="9"><span class="pp">	u_int i;                                                        \</span></a>
-<a class="sourceLine" id="cb4-10" title="10"><span class="pp">// ...</span></a></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb4-1"><a href="https://ubrigens.com#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">/*</span></span>
+<span id="cb4-2"><a href="https://ubrigens.com#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"> * MAC_CHECK performs the designated check by walking the policy</span></span>
+<span id="cb4-3"><a href="https://ubrigens.com#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"> * module list and checking with each as to how it feels about the</span></span>
+<span id="cb4-4"><a href="https://ubrigens.com#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"> * request.  Note that it returns its value via 'error' in the scope</span></span>
+<span id="cb4-5"><a href="https://ubrigens.com#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co"> * of the caller.</span></span>
+<span id="cb4-6"><a href="https://ubrigens.com#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co"> */</span></span>
+<span id="cb4-7"><a href="https://ubrigens.com#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#define MAC_CHECK</span><span class="op">(</span><span class="pp">check</span><span class="op">,</span><span class="pp"> args</span><span class="op">...)</span><span class="pp"> </span><span class="cf">do</span><span class="pp"> </span><span class="op">{</span><span class="pp">                                  </span><span class="op">\</span></span>
+<span id="cb4-8"><a href="https://ubrigens.com#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="pp">	</span><span class="kw">struct</span><span class="pp"> mac_policy_conf </span><span class="op">*</span><span class="pp">mpc</span><span class="op">;</span><span class="pp">                                    </span><span class="op">\</span></span>
+<span id="cb4-9"><a href="https://ubrigens.com#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="pp">	</span>u_int<span class="pp"> i</span><span class="op">;</span><span class="pp">                                                        </span><span class="op">\</span></span>
+<span id="cb4-10"><a href="https://ubrigens.com#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co">// ...</span></span></code></pre></div>
 <p>It should be possible to replicate the matching logic inside of this macro. Here we would repeatedly query <code>Sandbox.kext</code> for its decision while changing out a processes’ sandbox profile underneath the kernel extension.</p>
 <p>For this to work, we would need</p>
 <ol type="1">
@@ -143,7 +154,8 @@
 <p>All programs are initially launched <em>non-sandboxed</em>. This little-known fact, which is completely absent from all official documentation, is the achilles heel of the whole system. Under <em>normal</em> circumstances, the sandbox is initialised before transfer is controlled to application code. However, because initialisation happens in the context of the application itself, there is precious little room for error. As it stands, there is no process to ensure applications, whose metadata suggest they should run sandboxed, actually run sandboxed.</p>
 </blockquote>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox/initialisation_bypasses_overview.svg" alt="Overview of App Sandbox Initialisation Bypasses" /><figcaption>Overview of App Sandbox Initialisation Bypasses</figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox/initialisation_bypasses_overview.svg" alt="Overview of App Sandbox Initialisation Bypasses" />
+<figcaption aria-hidden="true">Overview of App Sandbox Initialisation Bypasses</figcaption>
 </figure>
 <p>In my opinion, application sandboxing on macOS should offer <em>declarative</em> security. If an application or binary is properly code-signed and contains entitlements suggesting it runs sandboxed, there should be no way for that app or binary to run unsandboxed. After all, the case for application sandboxing to <em>contain potentially malicious apps</em> is much stronger than is the case for sandboxing to <em>guard against exploits targeting third-party apps</em> (are there any such documented cases?).</p>
 <p>Currently though, the App Sandbox does not offer declarative security. In today’s post, I will show you three different ways for malicious developers to bypass sandbox initialisation. The graphic above gives you an idea about the structure of this post. Let’s get started.</p>
@@ -151,11 +163,11 @@
 <p><code>dyld</code>, macOS’s dynamic linker, starts the process of sandboxing an app. It does this by calling the initialiser for <code>libSystem</code>, which in turn <a href="https://opensource.apple.com/source/Libsystem/Libsystem-1281/init.c.auto.html">calls on <code>libsystem_secinit.dylib</code></a>. If your program does not use <code>dyld</code> – in other words, is statically linked – this code is never called. Sandboxing will never be activated, irrespective of the entitlements of the program.</p>
 <p>The kernel source code responsible for loading Mach-O programs is located in <code>parse_machfile</code> in <code>bsd/kern/mach_loader.c</code>. If a binary contains neither <code>LC_MAIN</code> nor <code>LC_LOAD_DYLINKER</code> load commands, its entry point will be called directly, without going through <code>dyld</code>.</p>
 <p>Creating <a href="https://github.com/0xbf00/pocs/tree/master/no-dyld-no-sandbox">the PoC</a> took me longer than I’d initially thought. As far as I know, standard tools on macOS do not support creating statically linked programs. In the end, I made some changes to <a href="https://github.com/stek29/minmacho"><code>minmacho</code></a> to produce the proof of concept. <a href="https://github.com/0xbf00/pocs/tree/master/no-dyld-no-sandbox">The resulting program</a> is incredibly simple and does nothing but spin in a tight loop. It is properly code signed with the sandboxing entitlement but does not run sandboxed.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb1-1" title="1">$ <span class="ex">asctl</span> sandbox check --pid 23811</a>
-<a class="sourceLine" id="cb1-2" title="2"><span class="ex">/Users/jakob/Programming/minmacho</span>/a.out:</a>
-<a class="sourceLine" id="cb1-3" title="3">	<span class="ex">signed</span> with App Sandbox entitlements</a>
-<a class="sourceLine" id="cb1-4" title="4">	<span class="ex">running</span> without App Sandbox enabled</a>
-<a class="sourceLine" id="cb1-5" title="5">	<span class="ex">running</span> unsandboxed</a></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="https://ubrigens.com#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> asctl sandbox check <span class="at">--pid</span> 23811</span>
+<span id="cb1-2"><a href="https://ubrigens.com#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">/Users/jakob/Programming/minmacho/a.out:</span></span>
+<span id="cb1-3"><a href="https://ubrigens.com#cb1-3" aria-hidden="true" tabindex="-1"></a>	<span class="ex">signed</span> with App Sandbox entitlements</span>
+<span id="cb1-4"><a href="https://ubrigens.com#cb1-4" aria-hidden="true" tabindex="-1"></a>	<span class="ex">running</span> without App Sandbox enabled</span>
+<span id="cb1-5"><a href="https://ubrigens.com#cb1-5" aria-hidden="true" tabindex="-1"></a>	<span class="ex">running</span> unsandboxed</span></code></pre></div>
 <h2 id="nothing-to-see-here-dyld-interposing-strikes-again">Nothing to See Here: <code>dyld</code> Interposing Strikes Again</h2>
 <p>Let’s assume for the moment that we are dealing with a dynamically-linked program. In this case, <code>dyld</code> gets called to load the target program. Towards the end, it will initialise all loaded libraries, starting with <code>libSystem</code>. <code>libSystem</code> in turn <a href="https://opensource.apple.com/source/Libsystem/Libsystem-1281/init.c.auto.html">calls on</a> <code>libsystem_secinit.dylib</code> to initialise sandboxing.</p>
 <p>This library first extracts and decodes the host programs’ entitlements. Reverse-engineering <code>libsystem_secinit.dylib</code>, you’ll find the library <a href="https://github.com/0xbf00/libsecinit/blob/24962765158a9e0330f2e8732a4738b5c888d2c9/src/libsecinit.c#L142">uses the following logic</a> for this purpose:</p>
@@ -219,38 +231,39 @@ if (entitlements) {
         <span class="date">February 26, 2020</span>
     </h2>
     <p>Developing and testing <a href="https://github.com/0xbf00/simbple"><code>simbple</code></a>, my SBPL interpreter, at the beginning of 2018, I thought my tool couldn’t possibly work correctly: scrolling through the results it yielded for <code>Calculator.app</code> — needless to say my main test application — I noticed this line in the generated profile:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode scheme"><code class="sourceCode scheme"><a class="sourceLine" id="cb1-1" title="1">(allow device-microphone)</a></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scheme"><code class="sourceCode scheme"><span id="cb1-1"><a href="https://ubrigens.com#cb1-1" aria-hidden="true" tabindex="-1"></a>(allow device-microphone)</span></code></pre></div>
 <p>Trying to figure out what went wrong, I created a minimal test case: taking <code>Calculator.app</code>’s Container file, I reduced it down to its core, stripping most entitlements, as many variables as possible and all sandbox snippets except for the <code>application.sb</code> base profile. To my surprise, the line displayed above disappeared. Eventually, I realised that the sandbox snippet associated with <code>SpeechRecognitionCore.framework</code> was to blame. This is what the snippet looked like:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode scheme"><code class="sourceCode scheme"><a class="sourceLine" id="cb2-1" title="1"><span class="co">;;</span></a>
-<a class="sourceLine" id="cb2-2" title="2"><span class="co">;; Speech Recognition Core framework - sandbox profile</span></a>
-<a class="sourceLine" id="cb2-3" title="3"><span class="co">;; Copyright (c) 2013 Apple Inc. All Rights reserved.</span></a>
-<a class="sourceLine" id="cb2-4" title="4"><span class="co">;;</span></a>
-<a class="sourceLine" id="cb2-5" title="5"><span class="co">;; WARNING: The sandbox rules in this file currently constitute</span></a>
-<a class="sourceLine" id="cb2-6" title="6"><span class="co">;; Apple System Private Interface and are subject to change at any time and</span></a>
-<a class="sourceLine" id="cb2-7" title="7"><span class="co">;; without notice. The contents of this file are also auto-generated and not</span></a>
-<a class="sourceLine" id="cb2-8" title="8"><span class="co">;; user editable; it may be overwritten at any time.</span></a>
-<a class="sourceLine" id="cb2-9" title="9"><span class="co">;;</span></a>
-<a class="sourceLine" id="cb2-10" title="10">(allow device-microphone)</a></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scheme"><code class="sourceCode scheme"><span id="cb2-1"><a href="https://ubrigens.com#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">;;</span></span>
+<span id="cb2-2"><a href="https://ubrigens.com#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">;; Speech Recognition Core framework - sandbox profile</span></span>
+<span id="cb2-3"><a href="https://ubrigens.com#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co">;; Copyright (c) 2013 Apple Inc. All Rights reserved.</span></span>
+<span id="cb2-4"><a href="https://ubrigens.com#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">;;</span></span>
+<span id="cb2-5"><a href="https://ubrigens.com#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co">;; </span><span class="al">WARNING</span><span class="co">: The sandbox rules in this file currently constitute</span></span>
+<span id="cb2-6"><a href="https://ubrigens.com#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co">;; Apple System Private Interface and are subject to change at any time and</span></span>
+<span id="cb2-7"><a href="https://ubrigens.com#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co">;; without notice. The contents of this file are also auto-generated and not</span></span>
+<span id="cb2-8"><a href="https://ubrigens.com#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co">;; user editable; it may be overwritten at any time.</span></span>
+<span id="cb2-9"><a href="https://ubrigens.com#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co">;;</span></span>
+<span id="cb2-10"><a href="https://ubrigens.com#cb2-10" aria-hidden="true" tabindex="-1"></a>(allow device-microphone)</span></code></pre></div>
 <p>But what does <code>SpeechRecognitionCore</code> have to do with <code>Calculator.app</code>?</p>
 <h2 id="a-second-look-at-sandbox-snippets">A Second Look at Sandbox Snippets</h2>
 <p><a href="https://ubrigens.com/posts/sandbox_tour.html">In my introductory post</a> about the App Sandbox, I listed the inputs <code>libsandbox</code> receives to build the sandbox profile for a specific app. Among them were <em>sandbox snippets</em>, a list of SBPL profiles that are evaluated to build the final list of sandbox rules. In addition to <code>application.sb</code>, which forms the foundation of the App Sandbox, your app can depend on external (system) frameworks and libraries. These frameworks may require additional, custom sandbox rules to function properly, which are specified in the <code>Resources/framework.sb</code> file as part of the framework bundle. Note that while such additional sandbox rules theoretically are required by that framework only, the sandbox works on a per-process basis. Because application and framework code runs in the same process, they also affect the application.</p>
 <p>On my system, <code>Calculator.app</code> links with 11 frameworks / libraries</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb3-1" title="1">$ <span class="ex">otool</span> -L /Applications/Calculator.app/Contents/MacOS/Calculator </a>
-<a class="sourceLine" id="cb3-2" title="2"><span class="ex">/Applications/Calculator.app/Contents/MacOS</span>/Calculator:</a>
-<a class="sourceLine" id="cb3-3" title="3">	<span class="ex">/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit</span> (compatibility version 45.0.0, current version 1671.40.104)</a>
-<a class="sourceLine" id="cb3-4" title="4">	<span class="ex">/System/Library/Frameworks/Cocoa.framework/Versions/A/Cocoa</span> (compatibility version 1.0.0, current version 23.0.0)</a>
-<a class="sourceLine" id="cb3-5" title="5">	<span class="ex">/System/Library/PrivateFrameworks/SpeechDictionary.framework/Versions/A/SpeechDictionary</span> (compatibility version 1.0.0, current version 1.0.0)</a>
-<a class="sourceLine" id="cb3-6" title="6">	<span class="ex">/System/Library/PrivateFrameworks/SpeechObjects.framework/Versions/A/SpeechObjects</span> (compatibility version 1.0.0, current version 1.0.0)</a>
-<a class="sourceLine" id="cb3-7" title="7">	<span class="ex">/System/Library/PrivateFrameworks/Calculate.framework/Versions/A/Calculate</span> (compatibility version 1.0.0, current version 1.0.0)</a>
-<a class="sourceLine" id="cb3-8" title="8">	<span class="ex">/System/Library/Frameworks/ApplicationServices.framework/Versions/A/ApplicationServices</span> (compatibility version 1.0.0, current version 50.1.0)</a>
-<a class="sourceLine" id="cb3-9" title="9">	<span class="ex">/System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore</span> (compatibility version 1.2.0, current version 1.11.0)</a>
-<a class="sourceLine" id="cb3-10" title="10">	<span class="ex">/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation</span> (compatibility version 300.0.0, current version 1570.13.0)</a>
-<a class="sourceLine" id="cb3-11" title="11">	<span class="ex">/usr/lib/libobjc.A.dylib</span> (compatibility version 1.0.0, current version 228.0.0)</a>
-<a class="sourceLine" id="cb3-12" title="12">	<span class="ex">/usr/lib/libSystem.B.dylib</span> (compatibility version 1.0.0, current version 1252.250.1)</a>
-<a class="sourceLine" id="cb3-13" title="13">	<span class="ex">/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation</span> (compatibility version 150.0.0, current version 1570.13.0)</a></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="https://ubrigens.com#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> otool <span class="at">-L</span> /Applications/Calculator.app/Contents/MacOS/Calculator </span>
+<span id="cb3-2"><a href="https://ubrigens.com#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">/Applications/Calculator.app/Contents/MacOS/Calculator:</span></span>
+<span id="cb3-3"><a href="https://ubrigens.com#cb3-3" aria-hidden="true" tabindex="-1"></a>	<span class="ex">/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit</span> <span class="er">(</span><span class="ex">compatibility</span> version 45.0.0, current version 1671.40.104<span class="kw">)</span></span>
+<span id="cb3-4"><a href="https://ubrigens.com#cb3-4" aria-hidden="true" tabindex="-1"></a>	<span class="ex">/System/Library/Frameworks/Cocoa.framework/Versions/A/Cocoa</span> <span class="er">(</span><span class="ex">compatibility</span> version 1.0.0, current version 23.0.0<span class="kw">)</span></span>
+<span id="cb3-5"><a href="https://ubrigens.com#cb3-5" aria-hidden="true" tabindex="-1"></a>	<span class="ex">/System/Library/PrivateFrameworks/SpeechDictionary.framework/Versions/A/SpeechDictionary</span> <span class="er">(</span><span class="ex">compatibility</span> version 1.0.0, current version 1.0.0<span class="kw">)</span></span>
+<span id="cb3-6"><a href="https://ubrigens.com#cb3-6" aria-hidden="true" tabindex="-1"></a>	<span class="ex">/System/Library/PrivateFrameworks/SpeechObjects.framework/Versions/A/SpeechObjects</span> <span class="er">(</span><span class="ex">compatibility</span> version 1.0.0, current version 1.0.0<span class="kw">)</span></span>
+<span id="cb3-7"><a href="https://ubrigens.com#cb3-7" aria-hidden="true" tabindex="-1"></a>	<span class="ex">/System/Library/PrivateFrameworks/Calculate.framework/Versions/A/Calculate</span> <span class="er">(</span><span class="ex">compatibility</span> version 1.0.0, current version 1.0.0<span class="kw">)</span></span>
+<span id="cb3-8"><a href="https://ubrigens.com#cb3-8" aria-hidden="true" tabindex="-1"></a>	<span class="ex">/System/Library/Frameworks/ApplicationServices.framework/Versions/A/ApplicationServices</span> <span class="er">(</span><span class="ex">compatibility</span> version 1.0.0, current version 50.1.0<span class="kw">)</span></span>
+<span id="cb3-9"><a href="https://ubrigens.com#cb3-9" aria-hidden="true" tabindex="-1"></a>	<span class="ex">/System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore</span> <span class="er">(</span><span class="ex">compatibility</span> version 1.2.0, current version 1.11.0<span class="kw">)</span></span>
+<span id="cb3-10"><a href="https://ubrigens.com#cb3-10" aria-hidden="true" tabindex="-1"></a>	<span class="ex">/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation</span> <span class="er">(</span><span class="ex">compatibility</span> version 300.0.0, current version 1570.13.0<span class="kw">)</span></span>
+<span id="cb3-11"><a href="https://ubrigens.com#cb3-11" aria-hidden="true" tabindex="-1"></a>	<span class="ex">/usr/lib/libobjc.A.dylib</span> <span class="er">(</span><span class="ex">compatibility</span> version 1.0.0, current version 228.0.0<span class="kw">)</span></span>
+<span id="cb3-12"><a href="https://ubrigens.com#cb3-12" aria-hidden="true" tabindex="-1"></a>	<span class="ex">/usr/lib/libSystem.B.dylib</span> <span class="er">(</span><span class="ex">compatibility</span> version 1.0.0, current version 1252.250.1<span class="kw">)</span></span>
+<span id="cb3-13"><a href="https://ubrigens.com#cb3-13" aria-hidden="true" tabindex="-1"></a>	<span class="ex">/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation</span> <span class="er">(</span><span class="ex">compatibility</span> version 150.0.0, current version 1570.13.0<span class="kw">)</span></span></code></pre></div>
 <p>At runtime, when linking, <code>dyld</code> will resolve and load dependencies <em>recursively</em>. Dependencies of dependencies will also be loaded into the address space of the app. When sandboxing the app, <a href="https://github.com/0xbf00/libsecinit/blob/24962765158a9e0330f2e8732a4738b5c888d2c9/src/libsecinit.c#L207"><em>all</em> loaded libraries</a> are considered when looking for sandbox snippets (though snippets from non-system libraries are by default silently ignored).</p>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox/snippets.svg" alt="Overview: Sandbox Snippets on macOS" /><figcaption>Overview: Sandbox Snippets on macOS</figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox/snippets.svg" alt="Overview: Sandbox Snippets on macOS" />
+<figcaption aria-hidden="true">Overview: Sandbox Snippets on macOS</figcaption>
 </figure>
 <p>This is how that snippet ended up in my output! The private <code>SpeechRecognitionCore.framework</code> is a second-order dependency of <code>AppKit</code>, the ubiquitous UI-framework on macOS.</p>
 <p>This bug was trivial to exploit: Link with <code>AppKit</code> — arguably the most important framework on macOS — and listen in on your users. No entitlement required. <a href="https://github.com/0xbf00/pocs/tree/master/CVE-2018-4184">Here’s</a> my PoC.</p>
@@ -264,7 +277,9 @@ if (entitlements) {
 <p>In summary, at the start of 2018, the vast majority of applications – at least 94.2% of apps analysed – could access the microphone, even though only 4.87% of all applications had the required entitlement. This is not all that surprising, considering the importance of <code>AppKit</code>. Check out <a href="https://svs.informatik.uni-hamburg.de/publications/2019/2019-11-Blochberger-State-of-the-Sandbox.pdf">this paper</a> for more information about the dataset used here and some cool statistics about the App Sandbox’s adoption.</p>
 <h2 id="disclosure-timeline">Disclosure Timeline</h2>
 <p>This issue was resolved in 81 days.</p>
-<p>March 12, 2018 — Initial report sent to Apple </br> March 21, 2018 — Apple confirms vulnerability, plans to address it in an upcoming security update </br> June 1, 2018 — <a href="https://support.apple.com/en-us/HT208849">Patch released</a>. The patch modified <code>SpeechRecognitionCore</code>’s sandbox snippet to check for the microphone entitlement. In recent versions of macOS, the sandbox snippet is completely empty.</p>
+<p>March 12, 2018 — Initial report sent to Apple </br>
+March 21, 2018 — Apple confirms vulnerability, plans to address it in an upcoming security update </br>
+June 1, 2018 — <a href="https://support.apple.com/en-us/HT208849">Patch released</a>. The patch modified <code>SpeechRecognitionCore</code>’s sandbox snippet to check for the microphone entitlement. In recent versions of macOS, the sandbox snippet is completely empty.</p>
 <p>Fun fact: The patch was only provided for macOS 10.13 and above. A fully patched 10.12 (which received security updates well into 2019) is still vulnerable.</p>
 </div>
 ]]></summary>
@@ -287,10 +302,10 @@ if (entitlements) {
 <p>Note that <a href="https://twitter.com/sdotknight/status/1230222846120644608">@sdotknight rightfully points</a> out that there is a platform profile that <em>also</em> affects sandboxing on macOS. My approach here only considers the sandbox profile generated in userland and does not consider the platform profile, which is embedded inside of <code>Sandbox.kext</code>.</p>
 <h2 id="the-anatomy-of-container.plist-files-on-macos">The Anatomy of Container.plist files on macOS</h2>
 <p><code>simbple</code> takes as input an apps’ <code>Container.plist</code> file, which can be found under <code>~/Library/Containers/bundle_id/</code>. This binary-encoded plist file contains lots of useful information (<em>note</em>: launch the target app once to generate the file). Follow along using:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb1-1" title="1"><span class="co"># Built-in tools, always available</span></a>
-<a class="sourceLine" id="cb1-2" title="2">$ <span class="ex">plutil</span> -convert xml1 /path/to/Container.plist -o -</a>
-<a class="sourceLine" id="cb1-3" title="3"><span class="co"># Levin's excellent tools. Display the information in a simpler format.</span></a>
-<a class="sourceLine" id="cb1-4" title="4">$ <span class="ex">jlutil</span> /path/to/Container.plist</a></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="https://ubrigens.com#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Built-in tools, always available</span></span>
+<span id="cb1-2"><a href="https://ubrigens.com#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> plutil <span class="at">-convert</span> xml1 /path/to/Container.plist <span class="at">-o</span> <span class="at">-</span></span>
+<span id="cb1-3"><a href="https://ubrigens.com#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Levin's excellent tools. Display the information in a simpler format.</span></span>
+<span id="cb1-4"><a href="https://ubrigens.com#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> jlutil /path/to/Container.plist</span></code></pre></div>
 <p>Likely taking up the most space in any <code>Container.plist</code>, the <code>SandboxProfileData</code> key holds the base64-encoded binary sandbox profile compiled by <code>libsandbox</code>.</p>
 <p>Grouped under <code>SandboxProfileDataValidationInfo</code> are inputs <code>libsandbox</code> uses to compile sandbox profiles:</p>
 <ol type="1">
@@ -301,52 +316,52 @@ if (entitlements) {
 </ol>
 <h2 id="using-simbple">Using <code>simbple</code></h2>
 <p><code>simbple</code> uses existing <code>Container.plist</code> files to reuse the same parameters that were initially used by the system. This simplifies the design of the tool.</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb2-1" title="1">$ <span class="ex">simbple</span> --help</a>
-<a class="sourceLine" id="cb2-2" title="2"><span class="ex">Usage</span>: simbple [OPTION...] CONTAINER_METADATA</a>
-<a class="sourceLine" id="cb2-3" title="3"><span class="ex">Evaluate</span> a SBPL (+ Scheme) <span class="ex">profile</span></a>
-<a class="sourceLine" id="cb2-4" title="4"></a>
-<a class="sourceLine" id="cb2-5" title="5">  <span class="ex">-o</span>, --output=FILE          Output file</a>
-<a class="sourceLine" id="cb2-6" title="6">  <span class="ex">-p</span>, --profile=PROFILE      Base profile to evaluate. Defaults to</a>
-<a class="sourceLine" id="cb2-7" title="7">                             <span class="ex">application.sb</span> profile.</a>
-<a class="sourceLine" id="cb2-8" title="8">      <span class="ex">--platforms</span>=PLATFORM   sierra, high_sierra, mojave (default), <span class="ex">catalina</span></a>
-<a class="sourceLine" id="cb2-9" title="9"></a>
-<a class="sourceLine" id="cb2-10" title="10"> <span class="ex">Output</span> formats:</a>
-<a class="sourceLine" id="cb2-11" title="11">      <span class="ex">--json</span>                 Output as JSON</a>
-<a class="sourceLine" id="cb2-12" title="12">      <span class="ex">--scheme</span>               Output as SCHEME / SBPL</a>
-<a class="sourceLine" id="cb2-13" title="13"></a>
-<a class="sourceLine" id="cb2-14" title="14"> <span class="ex">Misc</span> options:</a>
-<a class="sourceLine" id="cb2-15" title="15">      <span class="ex">--patch</span>                Patch the output profile to log all statements.</a>
-<a class="sourceLine" id="cb2-16" title="16">      <span class="ex">--verify</span>               Verify semantic correctness of generated results</a>
-<a class="sourceLine" id="cb2-17" title="17"></a>
-<a class="sourceLine" id="cb2-18" title="18">  <span class="ex">-?</span>, --help                 Give this help list</a>
-<a class="sourceLine" id="cb2-19" title="19">      <span class="ex">--usage</span>                Give a short usage message</a>
-<a class="sourceLine" id="cb2-20" title="20">  <span class="ex">-V</span>, --version              Print program version</a>
-<a class="sourceLine" id="cb2-21" title="21"></a>
-<a class="sourceLine" id="cb2-22" title="22"><span class="ex">Mandatory</span> or optional arguments to long options are also mandatory or optional</a>
-<a class="sourceLine" id="cb2-23" title="23"><span class="kw">for</span> <span class="ex">any</span> corresponding short options.</a>
-<a class="sourceLine" id="cb2-24" title="24"></a>
-<a class="sourceLine" id="cb2-25" title="25"><span class="ex">The</span> output is a simplified SBPL profile that can be analysed, modified and</a>
-<a class="sourceLine" id="cb2-26" title="26"><span class="ex">compiled</span> as is.</a></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="https://ubrigens.com#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> simbple <span class="at">--help</span></span>
+<span id="cb2-2"><a href="https://ubrigens.com#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">Usage:</span> simbple <span class="pp">[</span><span class="ss">OPTION...</span><span class="pp">]</span> CONTAINER_METADATA</span>
+<span id="cb2-3"><a href="https://ubrigens.com#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">Evaluate</span> a SBPL <span class="er">(</span><span class="ex">+</span> Scheme<span class="kw">)</span> <span class="ex">profile</span></span>
+<span id="cb2-4"><a href="https://ubrigens.com#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="https://ubrigens.com#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">-o,</span> <span class="at">--output</span><span class="op">=</span>FILE          Output file</span>
+<span id="cb2-6"><a href="https://ubrigens.com#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">-p,</span> <span class="at">--profile</span><span class="op">=</span>PROFILE      Base profile to evaluate. Defaults to</span>
+<span id="cb2-7"><a href="https://ubrigens.com#cb2-7" aria-hidden="true" tabindex="-1"></a>                             <span class="ex">application.sb</span> profile.</span>
+<span id="cb2-8"><a href="https://ubrigens.com#cb2-8" aria-hidden="true" tabindex="-1"></a>      <span class="ex">--platforms=PLATFORM</span>   sierra, high_sierra, mojave <span class="er">(</span><span class="ex">default</span><span class="kw">)</span><span class="ex">,</span> catalina</span>
+<span id="cb2-9"><a href="https://ubrigens.com#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="https://ubrigens.com#cb2-10" aria-hidden="true" tabindex="-1"></a> <span class="ex">Output</span> formats:</span>
+<span id="cb2-11"><a href="https://ubrigens.com#cb2-11" aria-hidden="true" tabindex="-1"></a>      <span class="ex">--json</span>                 Output as JSON</span>
+<span id="cb2-12"><a href="https://ubrigens.com#cb2-12" aria-hidden="true" tabindex="-1"></a>      <span class="ex">--scheme</span>               Output as SCHEME / SBPL</span>
+<span id="cb2-13"><a href="https://ubrigens.com#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="https://ubrigens.com#cb2-14" aria-hidden="true" tabindex="-1"></a> <span class="ex">Misc</span> options:</span>
+<span id="cb2-15"><a href="https://ubrigens.com#cb2-15" aria-hidden="true" tabindex="-1"></a>      <span class="ex">--patch</span>                Patch the output profile to log all statements.</span>
+<span id="cb2-16"><a href="https://ubrigens.com#cb2-16" aria-hidden="true" tabindex="-1"></a>      <span class="ex">--verify</span>               Verify semantic correctness of generated results</span>
+<span id="cb2-17"><a href="https://ubrigens.com#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="https://ubrigens.com#cb2-18" aria-hidden="true" tabindex="-1"></a>  <span class="ex">-?,</span> <span class="at">--help</span>                 Give this help list</span>
+<span id="cb2-19"><a href="https://ubrigens.com#cb2-19" aria-hidden="true" tabindex="-1"></a>      <span class="ex">--usage</span>                Give a short usage message</span>
+<span id="cb2-20"><a href="https://ubrigens.com#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="ex">-V,</span> <span class="at">--version</span>              Print program version</span>
+<span id="cb2-21"><a href="https://ubrigens.com#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="https://ubrigens.com#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="ex">Mandatory</span> or optional arguments to long options are also mandatory or optional</span>
+<span id="cb2-23"><a href="https://ubrigens.com#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> any <span class="ex">corresponding</span> short options.</span>
+<span id="cb2-24"><a href="https://ubrigens.com#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="https://ubrigens.com#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="ex">The</span> output is a simplified SBPL profile that can be analysed, modified and</span>
+<span id="cb2-26"><a href="https://ubrigens.com#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="ex">compiled</span> as is.</span></code></pre></div>
 <p>In its simplest form, simply invoke <code>simbple</code> with a path to the <code>Container.plist</code> file of the app you are interested in. Doing so will spit out the SBPL profile of the target app:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb3-1" title="1">$ <span class="ex">simbple</span> ~/Library/Containers/com.apple.calculator/Container.plist</a>
-<a class="sourceLine" id="cb3-2" title="2"><span class="kw">(</span><span class="ex">version</span> 1<span class="kw">)</span></a>
-<a class="sourceLine" id="cb3-3" title="3"><span class="kw">(</span><span class="ex">deny</span></a>
-<a class="sourceLine" id="cb3-4" title="4">    <span class="ex">default</span></a>
-<a class="sourceLine" id="cb3-5" title="5"><span class="kw">)</span></a>
-<a class="sourceLine" id="cb3-6" title="6"><span class="kw">(</span><span class="ex">allow</span></a>
-<a class="sourceLine" id="cb3-7" title="7">    <span class="ex">mach-register</span></a>
-<a class="sourceLine" id="cb3-8" title="8">    <span class="kw">(</span><span class="ex">local-name-prefix</span> <span class="st">&quot;&quot;</span><span class="kw">)</span></a>
-<a class="sourceLine" id="cb3-9" title="9"><span class="kw">)</span></a>
-<a class="sourceLine" id="cb3-10" title="10"><span class="kw">(</span><span class="ex">allow</span></a>
-<a class="sourceLine" id="cb3-11" title="11">    <span class="ex">mach-lookup</span></a>
-<a class="sourceLine" id="cb3-12" title="12">    <span class="kw">(</span><span class="ex">xpc-service-name-prefix</span> <span class="st">&quot;&quot;</span><span class="kw">)</span></a>
-<a class="sourceLine" id="cb3-13" title="13"><span class="kw">)</span></a>
-<a class="sourceLine" id="cb3-14" title="14"><span class="co"># &gt; 1800 lines follow on my system</span></a></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="https://ubrigens.com#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> simbple ~/Library/Containers/com.apple.calculator/Container.plist</span>
+<span id="cb3-2"><a href="https://ubrigens.com#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="ex">version</span> 1<span class="kw">)</span></span>
+<span id="cb3-3"><a href="https://ubrigens.com#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="ex">deny</span></span>
+<span id="cb3-4"><a href="https://ubrigens.com#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="ex">default</span></span>
+<span id="cb3-5"><a href="https://ubrigens.com#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">)</span></span>
+<span id="cb3-6"><a href="https://ubrigens.com#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="ex">allow</span></span>
+<span id="cb3-7"><a href="https://ubrigens.com#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="ex">mach-register</span></span>
+<span id="cb3-8"><a href="https://ubrigens.com#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">(</span><span class="ex">local-name-prefix</span> <span class="st">&quot;&quot;</span><span class="kw">)</span></span>
+<span id="cb3-9"><a href="https://ubrigens.com#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">)</span></span>
+<span id="cb3-10"><a href="https://ubrigens.com#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="kw">(</span><span class="ex">allow</span></span>
+<span id="cb3-11"><a href="https://ubrigens.com#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="ex">mach-lookup</span></span>
+<span id="cb3-12"><a href="https://ubrigens.com#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">(</span><span class="ex">xpc-service-name-prefix</span> <span class="st">&quot;&quot;</span><span class="kw">)</span></span>
+<span id="cb3-13"><a href="https://ubrigens.com#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="kw">)</span></span>
+<span id="cb3-14"><a href="https://ubrigens.com#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co"># &gt; 1800 lines follow on my system</span></span></code></pre></div>
 <p>The resulting sandbox profiles can be manually audited and modified, automatically patched or simply be compiled to profile bytecode using <a href="https://github.com/sektioneins/sandbox_toolkit/tree/master/compile_sb">Stefan Esser’s tool</a>. The results are useful not only to security researchers interested in studying the sandbox, but also for example to developers debugging their sandboxed applications.</p>
 <p>To verify that results are <em>correct</em> — meaning compiling the output results in identical sandbox bytecode to <code>libsandbox</code>’s result — use the <code>--verify</code> option. This is yet another benefit of using existing <code>Container.plist</code> files. We can use the <code>SandboxProfileData</code> data as ground truth to check against. Sandbox compilation is still a (<a href="https://github.com/0xbf00/simbple/blob/e4211c3428a417e351b7487990d00db2a71b3b69/src/sb/verify.c#L46">mostly</a>) deterministic process.</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb4-1" title="1">$ <span class="ex">simbple</span> ~/Library/Containers/com.apple.calculator/Container.plist -o /dev/null --verify</a>
-<a class="sourceLine" id="cb4-2" title="2">$ <span class="bu">echo</span> <span class="va">$?</span></a>
-<a class="sourceLine" id="cb4-3" title="3"><span class="ex">0</span> <span class="co"># Verification succeeded.</span></a></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="https://ubrigens.com#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> simbple ~/Library/Containers/com.apple.calculator/Container.plist <span class="at">-o</span> /dev/null <span class="at">--verify</span></span>
+<span id="cb4-2"><a href="https://ubrigens.com#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> echo <span class="va">$?</span></span>
+<span id="cb4-3"><a href="https://ubrigens.com#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">0</span> <span class="co"># Verification succeeded.</span></span></code></pre></div>
 <h2 id="a-teaser-the-story-of-cve-2018-4184">A Teaser: The Story of CVE-2018-4184</h2>
 <p><a href="https://support.apple.com/en-us/HT208849">macOS 10.13.5 fixed CVE-2018-4184</a>, an issue with “the handling of microphone access” I reported in 2018:</p>
 <pre><code>*Speech*
@@ -355,7 +370,7 @@ if (entitlements) {
 	Description: A sandbox issue existed in the handling of microphone access. This issue was addressed with improved handling of microphone access.
 	CVE-2018-4184: Jakob Rieck (@0xdead10cc) of the Security in Distributed Systems Group, University of Hamburg</code></pre>
 <p>What was the problem? Virtually every app — no matter their entitlements — was able to use the microphone on macOS. How did I figure this out? Well, I was developing <code>simbple</code> and thought my tool couldn’t possibly work correctly: scrolling through <code>Calculator.app</code>’s results, I noticed this line in the generated profile:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode scheme"><code class="sourceCode scheme"><a class="sourceLine" id="cb6-1" title="1">(allow device-microphone)</a></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode scheme"><code class="sourceCode scheme"><span id="cb6-1"><a href="https://ubrigens.com#cb6-1" aria-hidden="true" tabindex="-1"></a>(allow device-microphone)</span></code></pre></div>
 <p>Refer back to my previous post to see <code>Calculator.app</code>’s entitlements, which notably do not (and did not) allow the app access to the microphone. What was going on?!</p>
 </div>
 ]]></summary>
@@ -373,7 +388,8 @@ if (entitlements) {
     </h2>
     <p>No-one knows how to design truly secure software. Any sufficiently complex software <em>will</em> contain vulnerabilities that can be abused by motivated attackers to subvert a program’s execution. Accepting this reality, the focus of the last few decades has been on developing exploit mitigation techniques such as <em>Address Space Layout Randomisation</em> (ASLR) and <em>Data Execution Prevention</em> (DEP) which focus on <em>increasing difficulty and costs</em> for attackers.</p>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox_tour/dac_mac.svg" alt="Overview: DAC vs MAC" /><figcaption>Overview: DAC vs MAC</figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox_tour/dac_mac.svg" alt="Overview: DAC vs MAC" />
+<figcaption aria-hidden="true">Overview: DAC vs MAC</figcaption>
 </figure>
 <p>Sandboxing is one such mitigation. It aims to reduce the damage of successful attacks on the host system. On traditional UNIX systems, programs run <em>as</em> a user (in what’s referred to as <em>discretionary access control</em> — DAC), inheriting all her capabilities and permissions. Most of these capabilities and permissions however are never actually required by the executing program. Sandboxing (a form of <em>mandatory access control</em> or MAC) uses per-application security policies to limit the actions a program may take and the resources it is allowed to access; it aims to make <em>what a program can do</em> the same as <em>what a program was made to do</em>. In this way, sandboxing implements the foundational information security principle of <strong>least privilege</strong>, which states that programs and users should operate using the least amount of privilege necessary to complete a certain job. Sandboxed applications – even when compromised – can access only predefined parts of the system, limiting their damage potential and requiring attackers to escape the sandbox to compromise the system itself.</p>
 <p>Security benefits afforded by sandboxing hinge on proper configuration and understanding of the sandbox mechanism itself. No mitigation is perfect; <a href="https://twitter.com/halvarflake/status/1156815950873804800">Mitigations have complexity, inspectability and debuggability costs</a>. The App Sandbox is no exception: it has had a massive impact on developers scrambling to sandbox their software which was largely designed without sandboxing in mind. Apple’s sandbox implementation lacks public documentation. It “just works”, until it doesn’t. In 2018, I wrote my Master’s Thesis on the topic. In this series of posts, I am sharing what I learned in the process. My focus today is on implementation, configuration and design internals that might not be known to a wider audience.</p>
@@ -387,61 +403,66 @@ if (entitlements) {
 <h3 id="sbpl">SBPL</h3>
 <p>The Sandbox Profile Language (SBPL) is implemented on top of the Scheme programming language. In what is referred to as an embedded domain specific language (EDSL), the base language (Scheme) is extended and augmented by custom identifiers, functions and macros to encode sandbox rules.</p>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox_tour/sbpl_components.svg" alt="SBPL Language Components" /><figcaption>SBPL Language Components</figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox_tour/sbpl_components.svg" alt="SBPL Language Components" />
+<figcaption aria-hidden="true">SBPL Language Components</figcaption>
 </figure>
 <p>Sandbox profiles written in SBPL consist of multiple rules specified one after the other. Later rules can overwrite preceding rules, which is commonly used to implement whitelisting profiles: Deny everything first, then selectively re-enable only what is needed. Confirmed by extensive testing, the <em>last applicable rule</em> in a profile guides the final sandbox decision for a certain resource. Each rule consists of up to four components: An <em>action</em>, one or more <em>operations</em>, and optional <em>filters</em> and <em>modifiers</em>. Actions decide whether to allow or deny resource accesses. Operations denote the kind of resource access the rule applies to. Filters restrict a rule’s effect to a subset of all resources, for example only to files in a certain directory. Lastly, modifiers change the default behaviour of the sandbox. By default, only denied resource accesses are logged; a modifier changes this. A few years back, <a href="https://twitter.com/osxreverser">@osxreverser</a> bothered to <a href="https://reverse.put.as/wp-content/uploads/2011/09/Apple-Sandbox-Guide-v0.1.pdf">document the language</a>. It’s somewhat outdated, but still very useful.</p>
 <p>While the core SBPL language as described above is conceptually simple, SBPL profiles can include arbitrary Scheme code to dynamically <em>generate sandbox rules during evaluation</em>. Consider the following two SBPL snippets; Their compiled sandbox bytecode is identical.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode scheme"><code class="sourceCode scheme"><a class="sourceLine" id="cb1-1" title="1">(version <span class="dv">1</span>)</a>
-<a class="sourceLine" id="cb1-2" title="2">(allow file-read-data</a>
-<a class="sourceLine" id="cb1-3" title="3">	(subpath <span class="st">&quot;/usr/bin&quot;</span>)</a>
-<a class="sourceLine" id="cb1-4" title="4">	(subpath <span class="st">&quot;/usr/local&quot;</span>)</a>
-<a class="sourceLine" id="cb1-5" title="5">	(with report))</a></code></pre></div>
-<div class="sourceCode" id="cb2"><pre class="sourceCode scheme"><code class="sourceCode scheme"><a class="sourceLine" id="cb2-1" title="1">(version <span class="dv">1</span>)</a>
-<a class="sourceLine" id="cb2-2" title="2">(<span class="ex">define</span><span class="fu"> </span>(usr_plus suffix) (<span class="kw">string-append</span> <span class="st">&quot;/usr/&quot;</span> suffix))</a>
-<a class="sourceLine" id="cb2-3" title="3">(<span class="ex">define</span><span class="fu"> </span>(file-read-rule action filter)</a>
-<a class="sourceLine" id="cb2-4" title="4">	(action file-read-data</a>
-<a class="sourceLine" id="cb2-5" title="5">			filter</a>
-<a class="sourceLine" id="cb2-6" title="6">			(with report)))</a>
-<a class="sourceLine" id="cb2-7" title="7"></a>
-<a class="sourceLine" id="cb2-8" title="8">(file-read-rule allow</a>
-<a class="sourceLine" id="cb2-9" title="9">	(require-any </a>
-<a class="sourceLine" id="cb2-10" title="10">		(subpath (usr_plus <span class="st">&quot;bin&quot;</span>))</a>
-<a class="sourceLine" id="cb2-11" title="11">		(subpath (usr_plus <span class="st">&quot;local&quot;</span>))))</a></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode scheme"><code class="sourceCode scheme"><span id="cb1-1"><a href="https://ubrigens.com#cb1-1" aria-hidden="true" tabindex="-1"></a>(version <span class="dv">1</span>)</span>
+<span id="cb1-2"><a href="https://ubrigens.com#cb1-2" aria-hidden="true" tabindex="-1"></a>(allow file-read-data</span>
+<span id="cb1-3"><a href="https://ubrigens.com#cb1-3" aria-hidden="true" tabindex="-1"></a>	(subpath <span class="st">&quot;/usr/bin&quot;</span>)</span>
+<span id="cb1-4"><a href="https://ubrigens.com#cb1-4" aria-hidden="true" tabindex="-1"></a>	(subpath <span class="st">&quot;/usr/local&quot;</span>)</span>
+<span id="cb1-5"><a href="https://ubrigens.com#cb1-5" aria-hidden="true" tabindex="-1"></a>	(with report))</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode scheme"><code class="sourceCode scheme"><span id="cb2-1"><a href="https://ubrigens.com#cb2-1" aria-hidden="true" tabindex="-1"></a>(version <span class="dv">1</span>)</span>
+<span id="cb2-2"><a href="https://ubrigens.com#cb2-2" aria-hidden="true" tabindex="-1"></a>(<span class="ex">define</span><span class="fu"> </span>(usr_plus suffix) (<span class="kw">string-append</span> <span class="st">&quot;/usr/&quot;</span> suffix))</span>
+<span id="cb2-3"><a href="https://ubrigens.com#cb2-3" aria-hidden="true" tabindex="-1"></a>(<span class="ex">define</span><span class="fu"> </span>(file-read-rule action <span class="kw">filter</span>)</span>
+<span id="cb2-4"><a href="https://ubrigens.com#cb2-4" aria-hidden="true" tabindex="-1"></a>	(action file-read-data</span>
+<span id="cb2-5"><a href="https://ubrigens.com#cb2-5" aria-hidden="true" tabindex="-1"></a>			<span class="kw">filter</span></span>
+<span id="cb2-6"><a href="https://ubrigens.com#cb2-6" aria-hidden="true" tabindex="-1"></a>			(with report)))</span>
+<span id="cb2-7"><a href="https://ubrigens.com#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="https://ubrigens.com#cb2-8" aria-hidden="true" tabindex="-1"></a>(file-read-rule allow</span>
+<span id="cb2-9"><a href="https://ubrigens.com#cb2-9" aria-hidden="true" tabindex="-1"></a>	(require-any </span>
+<span id="cb2-10"><a href="https://ubrigens.com#cb2-10" aria-hidden="true" tabindex="-1"></a>		(subpath (usr_plus <span class="st">&quot;bin&quot;</span>))</span>
+<span id="cb2-11"><a href="https://ubrigens.com#cb2-11" aria-hidden="true" tabindex="-1"></a>		(subpath (usr_plus <span class="st">&quot;local&quot;</span>))))</span></code></pre></div>
 <p>Developers wishing to write SBPL sandbox profiles directly call <code>sandbox_init</code> from their application to voluntarily enable sandboxing. Well intentioned power users can use the <code>sandbox-exec</code> command line utility to run third-party software in custom sandboxes. Don’t bother doing this however; the software will not work correctly. On the off chance it does work correctly, your sandbox profile will be too permissive.</p>
 <p>SBPL is complex and difficult to use, even for experienced developers. Though only rarely used <em>directly</em> nowadays, it still forms the foundation for sandboxing on macOS and therefore remains important to understand.</p>
 <h3 id="entitlements">Entitlements</h3>
 <p><em>Entitlements</em> were introduced for reasons of usability. A “<a href="https://patents.google.com/patent/US20130283344">developer does not need to know how to program or set up a set of rules for the purpose of generating a security profile</a>”. Instead, developers specify entitlements that represent the resources and capabilities their software needs to use (and hopefully no others).</p>
-<p>Entitlements are not specific to sandboxing; They are also used for <em>iCloud</em>, <em>Push Notifications</em> and <em>Apple Pay</em>, to name just a few. At its core, each <em>entitlement</em> is a key-value pair, where the key is a string identifying the entitlement and the value configures the entitlement. Values can be of any type supported in property lists, including booleans, strings, dictionaries or arrays. <em>Entitlements</em> are then simply a collection of a program’s individual capabilities. Developers add the entitlements their applications require using Xcode or manually by editing a property list file. This list is securely embedded in the target program as part of its code signature and cannot be tampered with without invaliding an app’s cryptographic code signature. Using the <code>codesign</code> utility shows you which entitlements are embedded in binaries on your system:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><a class="sourceLine" id="cb3-1" title="1">$ <span class="ex">codesign</span> -d —entitlements :- /Applications/Calculator.app</a>
-<a class="sourceLine" id="cb3-2" title="2"><span class="va">Executable=</span>/Applications/Calculator.app/Contents/MacOS/Calculator</a>
-<a class="sourceLine" id="cb3-3" title="3"><span class="op">&lt;</span><span class="ex">?xml</span> version=“1.0” encoding=“UTF-8”?<span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-4" title="4"><span class="op">&lt;</span>!<span class="ex">DOCTYPE</span> plist PUBLIC “-//Apple//DTD PLIST 1.0//EN” “http://www.apple.com/DTDs/PropertyList-1.0.dtd”<span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-5" title="5"><span class="op">&lt;</span><span class="ex">plist</span> version=“1.0”<span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-6" title="6"><span class="op">&lt;</span><span class="ex">dict</span><span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-7" title="7">	<span class="op">&lt;</span><span class="ex">key</span><span class="op">&gt;</span>com.apple.security.app-sandbox<span class="op">&lt;</span>/key<span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-8" title="8">	<span class="op">&lt;</span><span class="ex">true</span>/<span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-9" title="9">	<span class="op">&lt;</span><span class="ex">key</span><span class="op">&gt;</span>com.apple.security.files.user-selected.read-write<span class="op">&lt;</span>/key<span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-10" title="10">	<span class="op">&lt;</span><span class="ex">true</span>/<span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-11" title="11">	<span class="op">&lt;</span><span class="ex">key</span><span class="op">&gt;</span>com.apple.security.network.client<span class="op">&lt;</span>/key<span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-12" title="12">	<span class="op">&lt;</span><span class="ex">true</span>/<span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-13" title="13">	<span class="op">&lt;</span><span class="ex">key</span><span class="op">&gt;</span>com.apple.security.print<span class="op">&lt;</span>/key<span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-14" title="14">	<span class="op">&lt;</span><span class="ex">true</span>/<span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-15" title="15"><span class="op">&lt;</span>/<span class="ex">dict</span><span class="op">&gt;</span></a>
-<a class="sourceLine" id="cb3-16" title="16"><span class="op">&lt;</span>/<span class="ex">plist</span><span class="op">&gt;</span></a></code></pre></div>
+<p>Entitlements are not specific to sandboxing; They are also used for <em>iCloud</em>, <em>Push Notifications</em> and <em>Apple Pay</em>, to name just a few. At its core, each <em>entitlement</em> is a key-value pair, where the key is a string identifying the entitlement and the value configures the entitlement. Values can be of any type supported in property lists, including booleans, strings, dictionaries or arrays. <em>Entitlements</em> are then simply a collection of a program’s individual capabilities.
+Developers add the entitlements their applications require using Xcode or manually by editing a property list file. This list is securely embedded in the target program as part of its code signature and cannot be tampered with without invaliding an app’s cryptographic code signature. Using the <code>codesign</code> utility shows you which entitlements are embedded in binaries on your system:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb3-1"><a href="https://ubrigens.com#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> codesign <span class="at">-d</span> —entitlements :- /Applications/Calculator.app</span>
+<span id="cb3-2"><a href="https://ubrigens.com#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="va">Executable</span><span class="op">=</span>/Applications/Calculator.app/Contents/MacOS/Calculator</span>
+<span id="cb3-3"><a href="https://ubrigens.com#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span><span class="ex">?xml</span> version=“1.0” encoding=“UTF-8”<span class="pp">?</span><span class="op">&gt;</span></span>
+<span id="cb3-4"><a href="https://ubrigens.com#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>!DOCTYPE <span class="ex">plist</span> PUBLIC “-//Apple//DTD PLIST 1.0//EN” “http://www.apple.com/DTDs/PropertyList-1.0.dtd”<span class="op">&gt;</span></span>
+<span id="cb3-5"><a href="https://ubrigens.com#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>plist <span class="va">version</span><span class="op">=</span>“1.0”<span class="op">&gt;</span></span>
+<span id="cb3-6"><a href="https://ubrigens.com#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>dict<span class="op">&gt;</span></span>
+<span id="cb3-7"><a href="https://ubrigens.com#cb3-7" aria-hidden="true" tabindex="-1"></a>	<span class="op">&lt;</span>key<span class="op">&gt;</span>com.apple.security.app-sandbox<span class="op">&lt;</span>/key<span class="op">&gt;</span></span>
+<span id="cb3-8"><a href="https://ubrigens.com#cb3-8" aria-hidden="true" tabindex="-1"></a>	<span class="op">&lt;</span>true/<span class="op">&gt;</span></span>
+<span id="cb3-9"><a href="https://ubrigens.com#cb3-9" aria-hidden="true" tabindex="-1"></a>	<span class="op">&lt;</span>key<span class="op">&gt;</span>com.apple.security.files.user-selected.read-write<span class="op">&lt;</span>/key<span class="op">&gt;</span></span>
+<span id="cb3-10"><a href="https://ubrigens.com#cb3-10" aria-hidden="true" tabindex="-1"></a>	<span class="op">&lt;</span>true/<span class="op">&gt;</span></span>
+<span id="cb3-11"><a href="https://ubrigens.com#cb3-11" aria-hidden="true" tabindex="-1"></a>	<span class="op">&lt;</span>key<span class="op">&gt;</span>com.apple.security.network.client<span class="op">&lt;</span>/key<span class="op">&gt;</span></span>
+<span id="cb3-12"><a href="https://ubrigens.com#cb3-12" aria-hidden="true" tabindex="-1"></a>	<span class="op">&lt;</span>true/<span class="op">&gt;</span></span>
+<span id="cb3-13"><a href="https://ubrigens.com#cb3-13" aria-hidden="true" tabindex="-1"></a>	<span class="op">&lt;</span>key<span class="op">&gt;</span>com.apple.security.print<span class="op">&lt;</span>/key<span class="op">&gt;</span></span>
+<span id="cb3-14"><a href="https://ubrigens.com#cb3-14" aria-hidden="true" tabindex="-1"></a>	<span class="op">&lt;</span>true/<span class="op">&gt;</span></span>
+<span id="cb3-15"><a href="https://ubrigens.com#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>/dict<span class="op">&gt;</span></span>
+<span id="cb3-16"><a href="https://ubrigens.com#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="op">&lt;</span>/plist<span class="op">&gt;</span></span></code></pre></div>
 <p>Here we see <code>Calculator.app</code>’s entitlements. Applications enabling the App Sandbox using the <code>com.apple.security.app-sandbox</code> entitlement are automatically sandboxed before any application code has the chance to execute (or so in theory…). Apple mandates sandboxing for applications from the MAS and ensures new apps possess this crucial entitlement. <code>Calculator.app</code> further declares entitlements allowing it to make outbound network connections (<code>*.network.client</code>), print, as well as read <em>and</em> write user-selected files. However, <code>Calculator.app</code> will for example never be able to use the microphone.</p>
 <p>The list of documented (and undocumented) entitlements grows with every new macOS release. Check out <a href="http://newosxbook.com/ent.jl">Levin’s entitlement database</a> and setup <a href="https://github.com/ChiChou/wiggle">wiggle</a> on your Mac to investigate further.</p>
 <p>In contrast to SBPL, entitlements are easy to understand and use. They hide the underlying complexity of the sandbox from developers, at the expense of policy flexibility.</p>
 <h2 id="architecture">Architecture</h2>
 <p>Apple’s sandbox is made up of components both in user space and in the kernel. Kernel components “<a href="https://patents.google.com/patent/US20130283344">increase security and provide an efficient mechanism</a>”. The following graphic and text gives an overview of some of these components and their interactions.</p>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox_tour/architecture.svg" alt="Overview: Sandboxing Architecture on macOS" /><figcaption>Overview: Sandboxing Architecture on macOS</figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox_tour/architecture.svg" alt="Overview: Sandboxing Architecture on macOS" />
+<figcaption aria-hidden="true">Overview: Sandboxing Architecture on macOS</figcaption>
 </figure>
 <p>It is important to understand that <strong>neither profiles written in SBPL nor the entitlements a program has are the <em>actual</em> sandbox security policy enforced at runtime</strong>. Instead, <code>libsandbox</code> (1) is responsible for <em>compiling</em> a sandbox profile for the application, which is then passed through the kernel (3) to the <code>Sandbox.kext</code> kernel extension (4) for enforcement. During runtime, this kernel extension interacts with <code>sandboxd</code> (2) for logging.</p>
-<p>macOS’s XNU kernel contains a port of TrustedBSD’s <em>mandatory access control</em> (MAC) framework, which notifies so-called <em>policy modules</em> whenever monitored functionality is accessed by processes. <code>Sandbox.kext</code> is one such policy module. It registers itself with the MAC framework on startup and is subsequently consulted whenever one of hundreds of monitored system calls is executed by a sandboxed program. Prior to executing the actual system call, hooks from the MAC framework call out to all registered policy modules. Each policy module can inspect the arguments and the current system state to decide whether the operation should proceed or not. If a single policy module denies an operation, the corresponding operating is cancelled and an error message is returned to the calling process (<a href="https://dl.packetstormsecurity.net/papers/general/apple-sandbox.pdf">h/t</a> <a href="https://twitter.com/justdionysus">@dion</a>).</p>
+<p>macOS’s XNU kernel contains a port of TrustedBSD’s <em>mandatory access control</em> (MAC) framework, which notifies so-called <em>policy modules</em> whenever monitored functionality is accessed by processes.
+<code>Sandbox.kext</code> is one such policy module. It registers itself with the MAC framework on startup and is subsequently consulted whenever one of hundreds of monitored system calls is executed by a sandboxed program. Prior to executing the actual system call, hooks from the MAC framework call out to all registered policy modules. Each policy module can inspect the arguments and the current system state to decide whether the operation should proceed or not. If a single policy module denies an operation, the corresponding operating is cancelled and an error message is returned to the calling process (<a href="https://dl.packetstormsecurity.net/papers/general/apple-sandbox.pdf">h/t</a> <a href="https://twitter.com/justdionysus">@dion</a>).</p>
 <p><code>Sandbox.kext</code> queries the compiled sandbox profile to check whether requested operations are allowed. The sandbox additionally supports so called <em>dynamic extensions</em>. As the name implies, these are capabilities dynamically added and removed from an application’s sandbox during its runtime. For instance, if a user drags-and-drops a file into an application, the application’s sandbox is automatically extended to allow access to this file. I did not look at dynamic extensions in more detail in my thesis.</p>
 <h3 id="sandboxing-lifecycle">Sandboxing Lifecycle</h3>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox_tour/lifecycle.svg" alt="Overview: Sandboxing Lifecycle" /><figcaption>Overview: Sandboxing Lifecycle</figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox_tour/lifecycle.svg" alt="Overview: Sandboxing Lifecycle" />
+<figcaption aria-hidden="true">Overview: Sandboxing Lifecycle</figcaption>
 </figure>
 <p>As was already touched upon in the Threat Model, applications on macOS <em>always</em> start out non-sandboxed. During their lifetime, they can <em>become</em> sandboxed. Once sandboxed, an application cannot remove the restrictions again. There are two different ways for applications to end up sandboxed:</p>
 <ol type="1">
@@ -450,7 +471,7 @@ if (entitlements) {
 </ol>
 <h2 id="a-closer-look-at-libsandbox">A Closer Look at <code>libsandbox</code></h2>
 <p>No matter whether the app makes use of the App Sandbox or uses the legacy sandboxing interface, at one point <code>libsandbox</code> will be invoked to compile the security profile for the application. Conceptually, this library does two different things, though they overlap in the actual implementation. Firstly, the library contains a custom Scheme interpreter based on <code>TinySCHEME</code>, modified to handle the full SBPL language. Secondly, it contains functionality to produce (<em>“compile”</em>) the sandbox bytecode for use by the sandbox’s kernel component.</p>
-<p>For applications using the legacy <code>sandbox_init</code> sandboxing interface directly, <code>libsandbox</code> is provided with a textual sandboxing profile written in a mixture of SBPL and Scheme. The library’s embedded interpreter <em>evaluates</em> (i.e. <em>executes</em>) this profile because, as described previously, SBPL profiles can contain arbitrary Scheme code that <em>generates sandbox rules during evaluation</em>. Recall the two <em>different</em> SBPL snippets shown previously that <em>resulted in identical bytecode</em>. The final ruleset generated during evaluation is then serialised and output in the opaque binary format.</p>
+<p>For applications using the legacy <code>sandbox_init</code> sandboxing interface directly, <code>libsandbox</code> is provided with a textual sandboxing profile written in a mixture of SBPL and Scheme. The library’s embedded interpreter <em>evaluates</em> (i.e. <em>executes</em>) this profile because, as described previously, SBPL profiles can contain arbitrary Scheme code that <em>generates sandbox rules during evaluation</em>. Recall the two <em>different</em> SBPL snippets shown previously that <em>resulted in identical bytecode</em>. The final ruleset generated during evaluation is then serialised and output in the opaque binary format.</p>
 <p>The ability to dynamically generate sandbox rules using Scheme code forms the foundation of the <em>App Sandbox</em>, which is used by the vast majority of applications. Here, <code>libsandbox</code> is invoked by the private <code>AppSandbox</code> framework, which first collects a number of inputs for <code>libsandbox</code>:</p>
 <ol type="1">
 <li><em>Entitlements</em>: These are extracted from the code signature of the application</li>
@@ -458,7 +479,8 @@ if (entitlements) {
 <li><em>Sandbox Snippets</em>: A list of SBPL profiles to evaluate, the most important one being the abstract <code>application.sb</code> application sandboxing base profile. In addition, some of Apple’s frameworks require custom sandbox rules to function properly. These rules are specified in a <code>.sb</code> file as part of the framework bundle. When an application links against such a framework, the corresponding sandbox snippet is included in the list, too.</li>
 </ol>
 <figure>
-<img src="https://ubrigens.com/assets/images/sandbox_tour/libsandbox_flow.svg" alt="Overview: Inner Workings of libsandbox" /><figcaption>Overview: Inner Workings of <code>libsandbox</code></figcaption>
+<img src="https://ubrigens.com/assets/images/sandbox_tour/libsandbox_flow.svg" alt="Overview: Inner Workings of libsandbox" />
+<figcaption aria-hidden="true">Overview: Inner Workings of <code>libsandbox</code></figcaption>
 </figure>
 <p>Profile compilation for the App Sandbox is slightly more complicated compared to the legacy sandboxing mechanism. Starting out, <code>libsandbox</code> makes entitlements and additional parameters available to SBPL profiles (scripts) it evaluates. It then starts by evaluating <code>application.sb</code> (referred to as <em>“abstract base profile”</em> in the graphic). This profile, which you can find on your system under <code>/System/Library/Sandbox/Profiles/application.sb</code>, dynamically generates sandbox rules while taking into account supplied entitlements and parameters. As shown in the graphic for example, the <code>(allow device-microphone)</code> sandbox rule is only emitted if the application possesses one of the sanctioned entitlements. Similarly, the profile references the user’s home directory (supplied as part of the /additional parameters/) using the <code>param</code> function to emit correct paths for the user’s machine. Lastly, each additional SBPL snippet is evaluated, building the final list of sandbox rules (referred to in the graphic as <em>“concrete app profile”</em>). Note that while the graphic shows the <em>concrete app profile</em> as consisting of human-readable SBPL rules, this is a simplification. In reality the rules are encoded in complex data structures within <code>libsandbox</code>, which are finally <em>compiled</em> into the opaque binary format for <code>Sandbox.kext</code> to use.</p>
 <p>I motivated this post by saying that sandboxing’s effectiveness depends on proper configuration. To decide whether <em>anything</em> is proper or not, you need to be able to look at (<em>audit</em>) it. Can you be sure what rules complex Scheme code will generate? Do you know what each entitlement <em>actually does</em> to your sandbox? To answer these questions, you would need access to a human-readable version of the <em>actual sandbox profile</em>. Unfortunately, there is no such thing on macOS. You have to trust the system “just works”.</p>
@@ -619,21 +641,25 @@ if (entitlements) {
 <p>For a cracker the most interesting file is the executable, which can be found by inspecting the <code>Info.plist</code> file, specifically be looking up the value for the <code>CFBundleExecutable</code> key. Today, most binaries contain code for multiple architectures. Such files are called <em>fat</em> binaries, stemming from the fact that they contain code for multiple architectures like <em>ARMv7</em>, <em>ARMv7s</em> and <em>ARM64</em> (also known as <em>ARMv8</em>). On the Mac, the same concept is used, but the code inside such binaries typically targets Intel’s 32- and 64-bit processors.</p>
 <p>At runtime, the dynamic linker (almost always <em>dyld</em>) will examine the file, determine the best architecture to run, process all load commands and then proceeds to execute the chosen slice. More information on the file format - <em>MachO</em> - and information on the various load commands can be found on Apple’s website <a href="https://developer.apple.com/library/mac/documentation/DeveloperTools/Conceptual/MachORuntime/index.html">[3]</a>.</p>
 <figure>
-<img src="https://ubrigens.com/assets/images/blackbox_decryption.svg" alt="Architecture selection at runtime" /><figcaption>Architecture selection at runtime</figcaption>
+<img src="https://ubrigens.com/assets/images/blackbox_decryption.svg" alt="Architecture selection at runtime" />
+<figcaption aria-hidden="true">Architecture selection at runtime</figcaption>
 </figure>
 <p>Essentially, the OS kernel can be treated as a black box that automatically decrypts part of the supplied binary - The part that runs <em>best</em> on the available hardware. In this case, <code>posix_spawn</code> was chosen to launch the process, but any other similar function will do. To simplify things, the figure ignores the fact that only the decrypted portion is present in memory after launch.</p>
 <p>On iOS, all third-party code must be code-signed by a valid developer ID. The code signature is specified as a load command just after the MachO header, so each <em>slice</em> - rather than the whole fat binary - has its own code signature. The signature is validated by the kernel, and apps with an invalid signature are killed immediately. On non-jailbroken devices, the integrity of the application bundle is ensured by the OS. On jailbroken devices, most of an apps’ contents are allowed to change, since critical security features are gone. Still, a code signature must be present for code to run - however, in this case, a pseudo signatures like those produced by <em>jtool</em> and <em>ldid</em> suffice.</p>
-<p>Popular cracking tools such as <em>Clutch</em> <a href="https://github.com/KJCracks/Clutch">[4]</a> use an ugly workaround to crack as many slices of an iOS binary as possible: Let’s say an app contains code for all three architectures mentioned above. <em>Clutch</em> is then going to patch the header of the executable three times, each time forcing the operating system to execute a different slice. Obviously this only works if the device can execute the slice, meaning that an iPhone 6 can be used to create cracks containing decrypted copies of all three architectures, whereas an iPhone 4S can only decrypt the <em>ARMv7</em> portion.</p>
+<p>Popular cracking tools such as <em>Clutch</em> <a href="https://github.com/KJCracks/Clutch">[4]</a> use an ugly workaround to crack as many slices of an iOS binary as possible:
+Let’s say an app contains code for all three architectures mentioned above. <em>Clutch</em> is then going to patch the header of the executable three times, each time forcing the operating system to execute a different slice. Obviously this only works if the device can execute the slice, meaning that an iPhone 6 can be used to create cracks containing decrypted copies of all three architectures, whereas an iPhone 4S can only decrypt the <em>ARMv7</em> portion.</p>
 <p>Here is the process visualized. Again, the device in question is an iPhone 5.</p>
 <figure>
-<img src="https://ubrigens.com/assets/images/clutch.svg" alt="Clutch on iPhone 5" /><figcaption>Clutch on iPhone 5</figcaption>
+<img src="https://ubrigens.com/assets/images/clutch.svg" alt="Clutch on iPhone 5" />
+<figcaption aria-hidden="true">Clutch on iPhone 5</figcaption>
 </figure>
 <p>In this case, the original binary contains three slices for different architectures. Because we are on iPhone 5 which uses a <em>ARMv7s</em> compatible CPU, normally only the corresponding slice would be executed. <em>Clutch</em> abuses the fact that ARM processors are generally backwards compatible, meaning devices capable of running <em>ARMv7s</em> code can also execute <em>ARMv7</em> code. In total, <em>Clutch</em> executes the app twice, once for each supported architecture. In order to force the operating system to execute a specific slice, all other slices are set to contain Intel code.</p>
 <p>Each slice is dumped by first spawning the new process using <code>posix_spawn</code> in a suspended state. This is accomplished by using the Apple only flag <code>POSIX_SPAWN_START_SUSPENDED</code>. No code by the application is ever executed, but the slice in question is automatically decrypted by the OS. Next, after aquiring the mach port for the spawned process using <code>task_for_pid</code>, its memory is copied to disk. Lastly, headers are patched where necessary (for example the <code>LC_ENCRYPTION_COMMAND</code> needs to be updated to reflect the fact that the new binary is no longer encrypted) and the processing of the next slice begins. If you are interested in the implementation details, check out the source code <a href="https://github.com/KJCracks/Clutch">[4]</a>.</p>
 <p>Finally, the decrypted pieces are combined into a new binary. Because the iPhone 5 does not support <em>ARM64</em>, the output only contains two slices. Still, the binary runs on iPhone 6 - albeit possibly a tiny bit slower.</p>
 <p>It is important for developers to understand how this process works. Although the public opinion is largely shaped by discussions about piracy, there are also legitimate uses for app cracking: Penetration testers looking for vulnerabilities in a clients’ app or developers working on <em>reproducible builds</em> <a href="https://github.com/WhisperSystems/Signal-iOS/issues/641">[5]</a>. There are profound implications for what I’ve written in here when we take into consideration <em>App Thinning</em> and <em>Bitcode</em>.<del>, which will be the topic of my next article! Stay tuned!</del></p>
 <p>I am not going to get around to write an entire article on this topic, so here is the gist of it:</p>
-<p><em>App Thinning</em> results in binaries that only contain one architecture, forcing crackers to use multiple devices to crack each individual slice and then manually combine them to create a version that runs on as many devices as possible. <em>Bitcode</em> on the other hand could allow Apple to create personalized versions of apps, allowing them to trace accounts that distribute cracked versions of an app (fittingly referred to as <em>traitor tracing</em>). If used, both technologies will hopefully reduce the impact of application cracking on the revenue of iOS developers.</p>
+<p><em>App Thinning</em> results in binaries that only contain one architecture, forcing crackers to use multiple devices to crack each individual slice and then manually combine them to create a version that runs on as many devices as possible. <em>Bitcode</em> on the other hand could allow Apple to create personalized versions of apps, allowing them to trace accounts that distribute cracked versions of an app (fittingly referred to as <em>traitor tracing</em>).
+If used, both technologies will hopefully reduce the impact of application cracking on the revenue of iOS developers.</p>
 <hr />
 <p>Changelog:</p>
 <ul>
@@ -655,9 +681,18 @@ if (entitlements) {
         Origins
         <span class="date">April 28, 2015</span>
     </h2>
-    <p>This is my personal site, where I mostly write about fun little projects related to information security.</p>
-<p>Content sprinkled in between could also be related to Haskell, C, or the myriad of tools useful for reverse engineering.</p>
-<p>The design of this site is pretty much stolen from <a href="http://raysohn.com">Raymond Sohn</a>. Once upon a time, his site featured more content than the three dots you find there now. Ray, I don’t know what happened to you, but I hope you are OK! Thank you for lending me your design. I am sure it would have taken at least another year before something appeared on here otherwise.</p>
+    <p>This is my personal site, where I mostly write about
+fun little projects related to information security.</p>
+<p>Content sprinkled in between could also be related
+to Haskell, C, or the myriad of tools useful for
+reverse engineering.</p>
+<p>The design of this site is pretty much stolen from
+<a href="http://raysohn.com">Raymond Sohn</a>. Once upon a
+time, his site featured more content than the
+three dots you find there now. Ray, I don’t know
+what happened to you, but I hope you are OK!
+Thank you for lending me your design. I am sure it would have taken at least another year before
+something appeared on here otherwise.</p>
 </div>
 ]]></summary>
 </entry>

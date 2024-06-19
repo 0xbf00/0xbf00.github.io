@@ -6,19 +6,6 @@
     <meta name="description" content="Ubrigens is a small site dedicated to all things Infosec.">
     <title>Ubrigens | The Long And Winding Road To Safety: Three Ways to Bypass Sandbox Initialisation on macOS</title>
     <link rel="stylesheet" type="text/css" href="../assets/css/default.css" />
-    <!-- <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script> -->
-    <!-- <script src="/assets/js/main.js"></script> -->
-    <script>
-  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-
-  ga('create', 'UA-58005603-2', 'auto');
-  ga('set', 'anonymizeIp', true);
-  ga('send', 'pageview');
-
-</script>
     <link rel="shortcut icon" type="image/png" href="../assets/images/favicon.png">
     <link rel="shortcut icon" type="image/png" href="https://ubrigens.com/assets/images/favicon.png" !>
 </head>
@@ -41,7 +28,8 @@
 <p>All programs are initially launched <em>non-sandboxed</em>. This little-known fact, which is completely absent from all official documentation, is the achilles heel of the whole system. Under <em>normal</em> circumstances, the sandbox is initialised before transfer is controlled to application code. However, because initialisation happens in the context of the application itself, there is precious little room for error. As it stands, there is no process to ensure applications, whose metadata suggest they should run sandboxed, actually run sandboxed.</p>
 </blockquote>
 <figure>
-<img src="../assets/images/sandbox/initialisation_bypasses_overview.svg" alt="Overview of App Sandbox Initialisation Bypasses" /><figcaption>Overview of App Sandbox Initialisation Bypasses</figcaption>
+<img src="../assets/images/sandbox/initialisation_bypasses_overview.svg" alt="Overview of App Sandbox Initialisation Bypasses" />
+<figcaption aria-hidden="true">Overview of App Sandbox Initialisation Bypasses</figcaption>
 </figure>
 <p>In my opinion, application sandboxing on macOS should offer <em>declarative</em> security. If an application or binary is properly code-signed and contains entitlements suggesting it runs sandboxed, there should be no way for that app or binary to run unsandboxed. After all, the case for application sandboxing to <em>contain potentially malicious apps</em> is much stronger than is the case for sandboxing to <em>guard against exploits targeting third-party apps</em> (are there any such documented cases?).</p>
 <p>Currently though, the App Sandbox does not offer declarative security. In today’s post, I will show you three different ways for malicious developers to bypass sandbox initialisation. The graphic above gives you an idea about the structure of this post. Let’s get started.</p>
@@ -49,11 +37,11 @@
 <p><code>dyld</code>, macOS’s dynamic linker, starts the process of sandboxing an app. It does this by calling the initialiser for <code>libSystem</code>, which in turn <a href="https://opensource.apple.com/source/Libsystem/Libsystem-1281/init.c.auto.html">calls on <code>libsystem_secinit.dylib</code></a>. If your program does not use <code>dyld</code> – in other words, is statically linked – this code is never called. Sandboxing will never be activated, irrespective of the entitlements of the program.</p>
 <p>The kernel source code responsible for loading Mach-O programs is located in <code>parse_machfile</code> in <code>bsd/kern/mach_loader.c</code>. If a binary contains neither <code>LC_MAIN</code> nor <code>LC_LOAD_DYLINKER</code> load commands, its entry point will be called directly, without going through <code>dyld</code>.</p>
 <p>Creating <a href="https://github.com/0xbf00/pocs/tree/master/no-dyld-no-sandbox">the PoC</a> took me longer than I’d initially thought. As far as I know, standard tools on macOS do not support creating statically linked programs. In the end, I made some changes to <a href="https://github.com/stek29/minmacho"><code>minmacho</code></a> to produce the proof of concept. <a href="https://github.com/0xbf00/pocs/tree/master/no-dyld-no-sandbox">The resulting program</a> is incredibly simple and does nothing but spin in a tight loop. It is properly code signed with the sandboxing entitlement but does not run sandboxed.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><a class="sourceLine" id="cb1-1" title="1">$ <span class="ex">asctl</span> sandbox check --pid 23811</a>
-<a class="sourceLine" id="cb1-2" title="2"><span class="ex">/Users/jakob/Programming/minmacho</span>/a.out:</a>
-<a class="sourceLine" id="cb1-3" title="3">	<span class="ex">signed</span> with App Sandbox entitlements</a>
-<a class="sourceLine" id="cb1-4" title="4">	<span class="ex">running</span> without App Sandbox enabled</a>
-<a class="sourceLine" id="cb1-5" title="5">	<span class="ex">running</span> unsandboxed</a></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> asctl sandbox check <span class="at">--pid</span> 23811</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">/Users/jakob/Programming/minmacho/a.out:</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>	<span class="ex">signed</span> with App Sandbox entitlements</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>	<span class="ex">running</span> without App Sandbox enabled</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>	<span class="ex">running</span> unsandboxed</span></code></pre></div>
 <h2 id="nothing-to-see-here-dyld-interposing-strikes-again">Nothing to See Here: <code>dyld</code> Interposing Strikes Again</h2>
 <p>Let’s assume for the moment that we are dealing with a dynamically-linked program. In this case, <code>dyld</code> gets called to load the target program. Towards the end, it will initialise all loaded libraries, starting with <code>libSystem</code>. <code>libSystem</code> in turn <a href="https://opensource.apple.com/source/Libsystem/Libsystem-1281/init.c.auto.html">calls on</a> <code>libsystem_secinit.dylib</code> to initialise sandboxing.</p>
 <p>This library first extracts and decodes the host programs’ entitlements. Reverse-engineering <code>libsystem_secinit.dylib</code>, you’ll find the library <a href="https://github.com/0xbf00/libsecinit/blob/24962765158a9e0330f2e8732a4738b5c888d2c9/src/libsecinit.c#L142">uses the following logic</a> for this purpose:</p>

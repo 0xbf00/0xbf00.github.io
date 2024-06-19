@@ -6,19 +6,6 @@
     <meta name="description" content="Ubrigens is a small site dedicated to all things Infosec.">
     <title>Ubrigens | Demystifying iOS App Cracking</title>
     <link rel="stylesheet" type="text/css" href="../assets/css/default.css" />
-    <!-- <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script> -->
-    <!-- <script src="/assets/js/main.js"></script> -->
-    <script>
-  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-
-  ga('create', 'UA-58005603-2', 'auto');
-  ga('set', 'anonymizeIp', true);
-  ga('send', 'pageview');
-
-</script>
     <link rel="shortcut icon" type="image/png" href="../assets/images/favicon.png">
     <link rel="shortcut icon" type="image/png" href="https://ubrigens.com/assets/images/favicon.png" !>
 </head>
@@ -42,21 +29,25 @@
 <p>For a cracker the most interesting file is the executable, which can be found by inspecting the <code>Info.plist</code> file, specifically be looking up the value for the <code>CFBundleExecutable</code> key. Today, most binaries contain code for multiple architectures. Such files are called <em>fat</em> binaries, stemming from the fact that they contain code for multiple architectures like <em>ARMv7</em>, <em>ARMv7s</em> and <em>ARM64</em> (also known as <em>ARMv8</em>). On the Mac, the same concept is used, but the code inside such binaries typically targets Intel’s 32- and 64-bit processors.</p>
 <p>At runtime, the dynamic linker (almost always <em>dyld</em>) will examine the file, determine the best architecture to run, process all load commands and then proceeds to execute the chosen slice. More information on the file format - <em>MachO</em> - and information on the various load commands can be found on Apple’s website <a href="https://developer.apple.com/library/mac/documentation/DeveloperTools/Conceptual/MachORuntime/index.html">[3]</a>.</p>
 <figure>
-<img src="../assets/images/blackbox_decryption.svg" alt="Architecture selection at runtime" /><figcaption>Architecture selection at runtime</figcaption>
+<img src="../assets/images/blackbox_decryption.svg" alt="Architecture selection at runtime" />
+<figcaption aria-hidden="true">Architecture selection at runtime</figcaption>
 </figure>
 <p>Essentially, the OS kernel can be treated as a black box that automatically decrypts part of the supplied binary - The part that runs <em>best</em> on the available hardware. In this case, <code>posix_spawn</code> was chosen to launch the process, but any other similar function will do. To simplify things, the figure ignores the fact that only the decrypted portion is present in memory after launch.</p>
 <p>On iOS, all third-party code must be code-signed by a valid developer ID. The code signature is specified as a load command just after the MachO header, so each <em>slice</em> - rather than the whole fat binary - has its own code signature. The signature is validated by the kernel, and apps with an invalid signature are killed immediately. On non-jailbroken devices, the integrity of the application bundle is ensured by the OS. On jailbroken devices, most of an apps’ contents are allowed to change, since critical security features are gone. Still, a code signature must be present for code to run - however, in this case, a pseudo signatures like those produced by <em>jtool</em> and <em>ldid</em> suffice.</p>
-<p>Popular cracking tools such as <em>Clutch</em> <a href="https://github.com/KJCracks/Clutch">[4]</a> use an ugly workaround to crack as many slices of an iOS binary as possible: Let’s say an app contains code for all three architectures mentioned above. <em>Clutch</em> is then going to patch the header of the executable three times, each time forcing the operating system to execute a different slice. Obviously this only works if the device can execute the slice, meaning that an iPhone 6 can be used to create cracks containing decrypted copies of all three architectures, whereas an iPhone 4S can only decrypt the <em>ARMv7</em> portion.</p>
+<p>Popular cracking tools such as <em>Clutch</em> <a href="https://github.com/KJCracks/Clutch">[4]</a> use an ugly workaround to crack as many slices of an iOS binary as possible:
+Let’s say an app contains code for all three architectures mentioned above. <em>Clutch</em> is then going to patch the header of the executable three times, each time forcing the operating system to execute a different slice. Obviously this only works if the device can execute the slice, meaning that an iPhone 6 can be used to create cracks containing decrypted copies of all three architectures, whereas an iPhone 4S can only decrypt the <em>ARMv7</em> portion.</p>
 <p>Here is the process visualized. Again, the device in question is an iPhone 5.</p>
 <figure>
-<img src="../assets/images/clutch.svg" alt="Clutch on iPhone 5" /><figcaption>Clutch on iPhone 5</figcaption>
+<img src="../assets/images/clutch.svg" alt="Clutch on iPhone 5" />
+<figcaption aria-hidden="true">Clutch on iPhone 5</figcaption>
 </figure>
 <p>In this case, the original binary contains three slices for different architectures. Because we are on iPhone 5 which uses a <em>ARMv7s</em> compatible CPU, normally only the corresponding slice would be executed. <em>Clutch</em> abuses the fact that ARM processors are generally backwards compatible, meaning devices capable of running <em>ARMv7s</em> code can also execute <em>ARMv7</em> code. In total, <em>Clutch</em> executes the app twice, once for each supported architecture. In order to force the operating system to execute a specific slice, all other slices are set to contain Intel code.</p>
 <p>Each slice is dumped by first spawning the new process using <code>posix_spawn</code> in a suspended state. This is accomplished by using the Apple only flag <code>POSIX_SPAWN_START_SUSPENDED</code>. No code by the application is ever executed, but the slice in question is automatically decrypted by the OS. Next, after aquiring the mach port for the spawned process using <code>task_for_pid</code>, its memory is copied to disk. Lastly, headers are patched where necessary (for example the <code>LC_ENCRYPTION_COMMAND</code> needs to be updated to reflect the fact that the new binary is no longer encrypted) and the processing of the next slice begins. If you are interested in the implementation details, check out the source code <a href="https://github.com/KJCracks/Clutch">[4]</a>.</p>
 <p>Finally, the decrypted pieces are combined into a new binary. Because the iPhone 5 does not support <em>ARM64</em>, the output only contains two slices. Still, the binary runs on iPhone 6 - albeit possibly a tiny bit slower.</p>
 <p>It is important for developers to understand how this process works. Although the public opinion is largely shaped by discussions about piracy, there are also legitimate uses for app cracking: Penetration testers looking for vulnerabilities in a clients’ app or developers working on <em>reproducible builds</em> <a href="https://github.com/WhisperSystems/Signal-iOS/issues/641">[5]</a>. There are profound implications for what I’ve written in here when we take into consideration <em>App Thinning</em> and <em>Bitcode</em>.<del>, which will be the topic of my next article! Stay tuned!</del></p>
 <p>I am not going to get around to write an entire article on this topic, so here is the gist of it:</p>
-<p><em>App Thinning</em> results in binaries that only contain one architecture, forcing crackers to use multiple devices to crack each individual slice and then manually combine them to create a version that runs on as many devices as possible. <em>Bitcode</em> on the other hand could allow Apple to create personalized versions of apps, allowing them to trace accounts that distribute cracked versions of an app (fittingly referred to as <em>traitor tracing</em>). If used, both technologies will hopefully reduce the impact of application cracking on the revenue of iOS developers.</p>
+<p><em>App Thinning</em> results in binaries that only contain one architecture, forcing crackers to use multiple devices to crack each individual slice and then manually combine them to create a version that runs on as many devices as possible. <em>Bitcode</em> on the other hand could allow Apple to create personalized versions of apps, allowing them to trace accounts that distribute cracked versions of an app (fittingly referred to as <em>traitor tracing</em>).
+If used, both technologies will hopefully reduce the impact of application cracking on the revenue of iOS developers.</p>
 <hr />
 <p>Changelog:</p>
 <ul>
