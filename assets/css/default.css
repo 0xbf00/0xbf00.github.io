@@ -332,17 +332,9 @@ body {
     min-width: 320px;
 }
 
-#content img.ray {
-    height: 400px;
-    background: #f8f8f8;
-}
 
 #content a, #footer a {
     border-bottom: 1px solid #ccc;
-}
-
-#content .cv-date {
-    font-size: 14px;
 }
 
 /* Footer ------------------------------------------------------------------ */
