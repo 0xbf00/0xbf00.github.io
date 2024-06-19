@@ -6,7 +6,7 @@ $ cabal build
 
 ## Usage
 
-````sh
+```sh
 $ cabal run
 Missing: COMMAND
 
@@ -36,4 +36,5 @@ Available commands:
 # To interactively test changes
 $ cabal run ubrigens watch
 # To deploy new version
+$ cabal run ubrigens deploy
 ```
